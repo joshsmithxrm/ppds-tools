@@ -29,3 +29,7 @@ obj/
 
 # Package output
 *.nupkg
+
+# Claude Code settings (local)
+.claude/settings.local.json
+*.local.json
