@@ -1,0 +1,31 @@
+# PowerShell
+*.ps1xml
+
+# Test results
+TestResults/
+coverage/
+*.xml
+
+# IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Environment files with secrets
+.env
+.env.local
+.env.*.local
+
+# Build artifacts
+bin/
+obj/
+
+# Package output
+*.nupkg

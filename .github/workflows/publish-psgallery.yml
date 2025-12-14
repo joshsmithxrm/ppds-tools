@@ -1,0 +1,50 @@
+name: Publish to PowerShell Gallery
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Pester
+        shell: pwsh
+        run: |
+          Install-Module Pester -Force -Scope CurrentUser -MinimumVersion 5.0.0
+          Import-Module Pester
+
+      - name: Run Tests
+        shell: pwsh
+        run: |
+          $config = New-PesterConfiguration
+          $config.Run.Path = './tests'
+          $config.Output.Verbosity = 'Detailed'
+          $config.Run.Exit = $true
+
+          Invoke-Pester -Configuration $config
+
+      - name: Validate Module Manifest
+        shell: pwsh
+        run: |
+          $manifest = Test-ModuleManifest -Path './src/PPDS.Tools/PPDS.Tools.psd1'
+          Write-Host "Publishing module: $($manifest.Name) v$($manifest.Version)"
+
+      - name: Publish to PowerShell Gallery
+        shell: pwsh
+        env:
+          PSGALLERY_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
+        run: |
+          if (-not $env:PSGALLERY_API_KEY) {
+            Write-Error "PSGALLERY_API_KEY secret is not set"
+            exit 1
+          }
+
+          Publish-Module `
+            -Path './src/PPDS.Tools' `
+            -NuGetApiKey $env:PSGALLERY_API_KEY `
+            -Verbose
