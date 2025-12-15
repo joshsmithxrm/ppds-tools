@@ -131,7 +131,7 @@ function Get-DataversePluginRegistrations {
             Write-Log "Building projects..."
             foreach ($proj in $projects) {
                 Write-Log "Building: $($proj.Name)"
-                $buildResult = & dotnet build $proj.ProjectPath -c $Configuration --nologo -v q 2>&1
+                $null = & dotnet build $proj.ProjectPath -c $Configuration --nologo -v q 2>&1
                 if ($LASTEXITCODE -ne 0) {
                     Write-LogError "Build failed for $($proj.Name)"
                     throw "Build failed"

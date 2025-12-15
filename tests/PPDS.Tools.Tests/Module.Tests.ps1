@@ -3,7 +3,7 @@ BeforeAll {
     Import-Module $modulePath -Force
 }
 
-Describe "PPDS.Tools Module" {
+Describe "PPDS.Tools Module" -Tag 'Unit' {
     Context "Module Loading" {
         It "Should import without errors" {
             { Import-Module $modulePath -Force } | Should -Not -Throw
@@ -54,13 +54,16 @@ Describe "PPDS.Tools Module" {
         }
 
         It "Deploy-DataversePlugins should have synopsis" {
-            $help = Get-Help Deploy-DataversePlugins
-            $help.Synopsis | Should -Not -BeNullOrEmpty
+            # Note: This function has a typed parameter that requires Microsoft.Xrm.Tooling.Connector
+            # which may not be available in CI. We test that the function exists and is documented.
+            $cmd = Get-Command -Module PPDS.Tools -Name Deploy-DataversePlugins -ErrorAction SilentlyContinue
+            $cmd | Should -Not -BeNullOrEmpty
+            $cmd.Definition | Should -Match '\.SYNOPSIS'
         }
     }
 }
 
-Describe "Schema File" {
+Describe "Schema File" -Tag 'Unit' {
     It "Should include plugin-registration.schema.json" {
         $schemaPath = Join-Path $modulePath "Schemas/plugin-registration.schema.json"
         Test-Path $schemaPath | Should -Be $true

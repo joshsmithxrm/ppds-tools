@@ -3,6 +3,11 @@
 
 $ErrorActionPreference = 'Stop'
 
+# Module constants
+# Microsoft's first-party OAuth app for Dataverse interactive authentication
+# This is a well-known public client ID that enables device code and browser-based auth
+$script:DefaultOAuthAppId = '51f81489-12ee-4a9e-aaae-a2591f45987d'
+
 # Dot-source private functions
 $privatePath = Join-Path $PSScriptRoot 'Private'
 if (Test-Path $privatePath) {

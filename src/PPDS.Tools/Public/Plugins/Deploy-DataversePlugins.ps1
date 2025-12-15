@@ -1,3 +1,14 @@
+# Design Decision: Sequential Step Deployment
+# ============================================
+# Steps are deployed sequentially rather than in parallel (ForEach-Object -Parallel).
+# Rationale:
+#   1. Simpler error handling and debugging
+#   2. Clear progress output for users
+#   3. Avoids Dataverse API rate limiting issues
+#   4. Maintains transactional semantics (partial failures are clear)
+#   5. Most registrations have <50 steps, making parallelism unnecessary
+# Future consideration: Add -Parallel switch for large registrations (100+ steps)
+
 function Deploy-DataversePlugins {
     <#
     .SYNOPSIS
@@ -222,7 +233,9 @@ function Deploy-DataversePlugins {
                 if (-not $isWhatIf) {
                     try {
                         $existingStep = Get-ProcessingStep -ApiUrl $apiUrl -AuthHeaders $authHeaders -StepName $step.name
-                    } catch { }
+                    } catch {
+                        Write-LogDebug "Step not found (expected for new steps): $($_.Exception.Message)"
+                    }
                 }
 
                 $stepData = @{
@@ -287,7 +300,9 @@ function Deploy-DataversePlugins {
                     if (-not $isWhatIf -and $stepId) {
                         try {
                             $existingImages = Get-StepImages -ApiUrl $apiUrl -AuthHeaders $authHeaders -StepId $stepId
-                        } catch { }
+                        } catch {
+                            Write-LogDebug "Could not retrieve existing images: $($_.Exception.Message)"
+                        }
                     }
 
                     $existingImage = $existingImages | Where-Object { $_.name -eq $image.name } | Select-Object -First 1

@@ -115,7 +115,8 @@ function Connect-DataverseEnvironment {
         $envUrl = Get-EnvVar "DATAVERSE_URL"
         $envClientId = Get-EnvVar "SP_APPLICATION_ID"
         $envClientSecret = Get-EnvVar "SP_CLIENT_SECRET"
-        $envTenantId = Get-EnvVar "SP_TENANT_ID"
+        # Note: TenantId not currently used in connection string but kept for future use
+        $null = Get-EnvVar "SP_TENANT_ID"
 
         $url = if (-not [string]::IsNullOrWhiteSpace($EnvironmentUrl)) {
             $EnvironmentUrl
@@ -136,7 +137,7 @@ function Connect-DataverseEnvironment {
                 throw "EnvironmentUrl required for interactive authentication"
             }
 
-            $finalConnectionString = "AuthType=OAuth;Url=$url;AppId=51f81489-12ee-4a9e-aaae-a2591f45987d;RedirectUri=http://localhost;LoginPrompt=Auto"
+            $finalConnectionString = "AuthType=OAuth;Url=$url;AppId=$script:DefaultOAuthAppId;RedirectUri=http://localhost;LoginPrompt=Auto"
             $authMethod = "Interactive OAuth"
         }
         else {

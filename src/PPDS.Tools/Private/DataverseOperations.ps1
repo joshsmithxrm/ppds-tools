@@ -262,7 +262,7 @@ function Deploy-PluginAssembly {
             Write-LogDebug "Package unique name: $packageUniqueName"
 
             try {
-                $response = Invoke-DataverseApi -ApiUrl $ApiUrl -AuthHeaders $AuthHeaders -Endpoint "pluginpackages" -Method POST -Body $body
+                $null = Invoke-DataverseApi -ApiUrl $ApiUrl -AuthHeaders $AuthHeaders -Endpoint "pluginpackages" -Method POST -Body $body
                 Write-LogSuccess "Plugin package registered successfully"
                 return Get-PluginAssembly -ApiUrl $ApiUrl -AuthHeaders $AuthHeaders -Name $AssemblyName
             }
@@ -329,7 +329,7 @@ function Deploy-PluginAssembly {
             }
 
             try {
-                $response = Invoke-DataverseApi -ApiUrl $ApiUrl -AuthHeaders $AuthHeaders -Endpoint "pluginassemblies" -Method POST -Body $body
+                $null = Invoke-DataverseApi -ApiUrl $ApiUrl -AuthHeaders $AuthHeaders -Endpoint "pluginassemblies" -Method POST -Body $body
                 Write-LogSuccess "Assembly registered successfully"
                 return Get-PluginAssembly -ApiUrl $ApiUrl -AuthHeaders $AuthHeaders -Name $AssemblyName
             }

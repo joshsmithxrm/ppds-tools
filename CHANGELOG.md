@@ -2,8 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+
+- PSScriptAnalyzer linting in CI pipeline (errors + warnings fail build)
+- Unit tests for JSON serialization utilities
+- Code coverage reporting with 80% threshold
+- Pester test tags for categorization (Unit, Integration)
+
+### Changed
+
+- Extracted shared assembly resolution logic to `Invoke-WithAssemblyResolution`
+- Refactored large public functions into smaller private helpers
+- Moved OAuth AppId to module constant for maintainability
+
+### Fixed
+
+- OData query issues when filter values contain single quotes (proper escaping)
+
+### Security
+
+- Added input escaping for OData filter values to prevent injection
 
 ## [1.0.0] - 2025-12-13
 

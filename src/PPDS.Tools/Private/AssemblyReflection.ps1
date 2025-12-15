@@ -1,3 +1,55 @@
+function Invoke-WithAssemblyResolution {
+    <#
+    .SYNOPSIS
+        Executes a script block with assembly resolution handling.
+    .DESCRIPTION
+        Loads a .NET assembly with proper dependency resolution. Dependencies
+        are resolved from the same directory as the main DLL.
+    .PARAMETER DllPath
+        Path to the DLL to load.
+    .PARAMETER ScriptBlock
+        Script block to execute with the loaded assembly. Receives the assembly
+        as a parameter.
+    .OUTPUTS
+        The result of the script block execution.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$DllPath,
+
+        [Parameter(Mandatory = $true)]
+        [scriptblock]$ScriptBlock
+    )
+
+    if (-not (Test-Path $DllPath)) {
+        throw "DLL not found: $DllPath"
+    }
+
+    $dllFullPath = (Resolve-Path $DllPath).Path
+    $dllDir = Split-Path $dllFullPath -Parent
+
+    # Create handler to resolve dependencies from the same directory
+    $resolveHandler = [System.ResolveEventHandler]{
+        param($s, $e)
+        $assemblyName = (New-Object System.Reflection.AssemblyName($e.Name)).Name
+        $localDllPath = Join-Path $dllDir "$assemblyName.dll"
+        if (Test-Path $localDllPath) {
+            return [System.Reflection.Assembly]::LoadFrom($localDllPath)
+        }
+        return $null
+    }
+
+    [System.AppDomain]::CurrentDomain.add_AssemblyResolve($resolveHandler)
+
+    try {
+        $assembly = [System.Reflection.Assembly]::LoadFrom($dllFullPath)
+        return & $ScriptBlock $assembly
+    }
+    finally {
+        [System.AppDomain]::CurrentDomain.remove_AssemblyResolve($resolveHandler)
+    }
+}
+
 function Get-PluginRegistrationsFromAssembly {
     <#
     .SYNOPSIS
@@ -12,27 +64,8 @@ function Get-PluginRegistrationsFromAssembly {
         [string]$DllPath
     )
 
-    if (-not (Test-Path $DllPath)) {
-        throw "DLL not found: $DllPath"
-    }
-
-    $dllFullPath = (Resolve-Path $DllPath).Path
-    $dllDir = Split-Path $dllFullPath -Parent
-
-    $resolveHandler = [System.ResolveEventHandler]{
-        param($sender, $args)
-        $assemblyName = (New-Object System.Reflection.AssemblyName($args.Name)).Name
-        $dllPath = Join-Path $dllDir "$assemblyName.dll"
-        if (Test-Path $dllPath) {
-            return [System.Reflection.Assembly]::LoadFrom($dllPath)
-        }
-        return $null
-    }
-
-    [System.AppDomain]::CurrentDomain.add_AssemblyResolve($resolveHandler)
-
-    try {
-        $assembly = [System.Reflection.Assembly]::LoadFrom($dllFullPath)
+    return Invoke-WithAssemblyResolution -DllPath $DllPath -ScriptBlock {
+        param($assembly)
         $plugins = @()
 
         foreach ($type in $assembly.GetExportedTypes()) {
@@ -114,9 +147,6 @@ function Get-PluginRegistrationsFromAssembly {
 
         return $plugins
     }
-    finally {
-        [System.AppDomain]::CurrentDomain.remove_AssemblyResolve($resolveHandler)
-    }
 }
 
 function Get-AllPluginTypeNames {
@@ -129,27 +159,8 @@ function Get-AllPluginTypeNames {
         [string]$DllPath
     )
 
-    if (-not (Test-Path $DllPath)) {
-        throw "DLL not found: $DllPath"
-    }
-
-    $dllFullPath = (Resolve-Path $DllPath).Path
-    $dllDir = Split-Path $dllFullPath -Parent
-
-    $resolveHandler = [System.ResolveEventHandler]{
-        param($sender, $args)
-        $assemblyName = (New-Object System.Reflection.AssemblyName($args.Name)).Name
-        $dllPath = Join-Path $dllDir "$assemblyName.dll"
-        if (Test-Path $dllPath) {
-            return [System.Reflection.Assembly]::LoadFrom($dllPath)
-        }
-        return $null
-    }
-
-    [System.AppDomain]::CurrentDomain.add_AssemblyResolve($resolveHandler)
-
-    try {
-        $assembly = [System.Reflection.Assembly]::LoadFrom($dllFullPath)
+    return Invoke-WithAssemblyResolution -DllPath $DllPath -ScriptBlock {
+        param($assembly)
         $typeNames = @()
 
         foreach ($type in $assembly.GetExportedTypes()) {
@@ -168,7 +179,7 @@ function Get-AllPluginTypeNames {
 
             if (-not $isPlugin) {
                 $baseType = $type.BaseType
-                while ($baseType -ne $null) {
+                while ($null -ne $baseType) {
                     if ($baseType.Name -eq "CodeActivity" -or $baseType.FullName -like "*CodeActivity") {
                         $isPlugin = $true
                         break
@@ -183,9 +194,6 @@ function Get-AllPluginTypeNames {
         }
 
         return $typeNames
-    }
-    finally {
-        [System.AppDomain]::CurrentDomain.remove_AssemblyResolve($resolveHandler)
     }
 }
 
