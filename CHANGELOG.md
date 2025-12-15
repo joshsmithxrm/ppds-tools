@@ -17,13 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive authentication now uses device code flow instead of browser redirect
   - More reliable across different environments (SSH, containers, corporate proxies)
 - Plugin type registration now uses `MSCRM.SolutionUniqueName` header for solution association (matches extension pattern)
+- Plugin package registration uses `MSCRM.SolutionUniqueName` header (no separate AddSolutionComponent call needed)
 
 ### Added
 
 - Native OAuth2 implementation for service principal (client credentials) authentication
 - Device code flow for interactive authentication (`-Interactive` flag)
 - `DataverseConnection` class with token expiry tracking
-- PluginPackage component type (10090) for solution component management
 
 ### Fixed
 
@@ -32,20 +32,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `../path` resolves relative to registrations.json location
   - Absolute paths used as-is
 - Plugin package registration now correctly parses name/version from nupkg filename (requires X.Y.Z format)
-- Plugin package registration now uses `MSCRM.SolutionUniqueName` header for solution association
-- Plugin package now explicitly added to solution after registration
 - Skip adding Plugin Assembly to solution for NuGet packages (package contains the assembly)
 - Assembly registration now returns fallback object if post-registration query fails (fixes "skipping step registration" issue)
 - Image update now only sends updatable fields (`entityalias`, `attributes`) - `imagetype`, `name`, `messagepropertyname` are read-only after creation
 - Image update errors now caught and logged as warnings instead of crashing deployment
-- Removed incorrect `AddSolutionComponent` call for PluginType (now uses header during creation)
-- Fixed PluginPackage component type from incorrect 10076 to correct 10090
 
 ### Removed
 
 - Dependency on `Microsoft.Xrm.Data.PowerShell` module
 - PowerShell 7.0 minimum requirement (now supports 5.1+)
-- Unused component types from `$script:ComponentType` (PluginType 90, SdkMessageProcessingStepImage 93)
+- Unused component types from `$script:ComponentType` (PluginType, PluginPackage, SdkMessageProcessingStepImage - only PluginAssembly and SdkMessageProcessingStep remain)
 
 ## [1.0.0] - 2025-12-13
 

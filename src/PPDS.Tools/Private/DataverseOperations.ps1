@@ -310,14 +310,6 @@ function Deploy-PluginAssembly {
                 $packageId = $response.pluginpackageid
                 Write-LogSuccess "Plugin package registered: $packageId"
 
-                # Explicitly add plugin package to solution (belt and suspenders)
-                if ($SolutionUniqueName -and $packageId) {
-                    Add-SolutionComponent -ApiUrl $ApiUrl -AuthHeaders $AuthHeaders `
-                        -SolutionUniqueName $SolutionUniqueName `
-                        -ComponentId $packageId `
-                        -ComponentType $script:ComponentType.PluginPackage | Out-Null
-                }
-
                 return Get-PluginAssembly -ApiUrl $ApiUrl -AuthHeaders $AuthHeaders -Name $AssemblyName
             }
             catch {

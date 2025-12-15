@@ -36,7 +36,6 @@ $script:DataverseImageTypeValues = @{
 $script:ComponentType = @{
     PluginAssembly = 91
     SdkMessageProcessingStep = 92
-    PluginPackage = 10090
 }
 
 function Get-PluginAssembly {
@@ -292,7 +291,7 @@ function Add-SolutionComponent {
         [Parameter(Mandatory = $true)]
         [string]$ComponentId,
         [Parameter(Mandatory = $true)]
-        [ValidateSet(91, 92, 10090)]
+        [ValidateSet(91, 92)]
         [int]$ComponentType,
         [Parameter()]
         [switch]$WhatIf
@@ -301,7 +300,6 @@ function Add-SolutionComponent {
     $componentTypeName = switch ($ComponentType) {
         91 { "Plugin Assembly" }
         92 { "SDK Message Processing Step" }
-        10090 { "Plugin Package" }
     }
 
     if ($WhatIf) {
