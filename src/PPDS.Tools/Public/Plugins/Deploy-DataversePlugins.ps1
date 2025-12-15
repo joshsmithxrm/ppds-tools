@@ -187,15 +187,10 @@ function Deploy-DataversePlugins {
                 if (-not $pluginType -and $plugin.steps.Count -gt 0 -and $asmReg.type -eq "Assembly") {
                     Write-Log "  Registering new plugin type: $($plugin.typeName)"
                     $pluginType = New-PluginType -ApiUrl $apiUrl -AuthHeaders $authHeaders `
-                        -AssemblyId $assembly.pluginassemblyid -TypeName $plugin.typeName
+                        -AssemblyId $assembly.pluginassemblyid -TypeName $plugin.typeName `
+                        -SolutionUniqueName $solutionUniqueName
                     if ($pluginType) {
                         Write-LogSuccess "  Plugin type created"
-                        if ($solutionUniqueName) {
-                            Add-SolutionComponent -ApiUrl $apiUrl -AuthHeaders $authHeaders `
-                                -SolutionUniqueName $solutionUniqueName `
-                                -ComponentId $pluginType.plugintypeid `
-                                -ComponentType $script:ComponentType.PluginType | Out-Null
-                        }
                     }
                 }
                 elseif (-not $pluginType -and $plugin.steps.Count -gt 0) {
@@ -268,10 +263,13 @@ function Deploy-DataversePlugins {
                         Write-LogSuccess "    Step updated"
 
                         if ($solutionUniqueName) {
-                            Add-SolutionComponent -ApiUrl $apiUrl -AuthHeaders $authHeaders `
+                            $addResult = Add-SolutionComponent -ApiUrl $apiUrl -AuthHeaders $authHeaders `
                                 -SolutionUniqueName $solutionUniqueName `
                                 -ComponentId $stepId `
-                                -ComponentType $script:ComponentType.SdkMessageProcessingStep | Out-Null
+                                -ComponentType $script:ComponentType.SdkMessageProcessingStep
+                            if ($addResult) {
+                                Write-LogDebug "    Step added to solution"
+                            }
                         }
                     } else {
                         Write-Log "    [WhatIf] Would update step"
@@ -286,10 +284,13 @@ function Deploy-DataversePlugins {
                         Write-LogSuccess "    Step created"
 
                         if ($solutionUniqueName) {
-                            Add-SolutionComponent -ApiUrl $apiUrl -AuthHeaders $authHeaders `
+                            $addResult = Add-SolutionComponent -ApiUrl $apiUrl -AuthHeaders $authHeaders `
                                 -SolutionUniqueName $solutionUniqueName `
                                 -ComponentId $stepId `
-                                -ComponentType $script:ComponentType.SdkMessageProcessingStep | Out-Null
+                                -ComponentType $script:ComponentType.SdkMessageProcessingStep
+                            if ($addResult) {
+                                Write-LogDebug "    Step added to solution"
+                            }
                         }
                     } else {
                         Write-Log "    [WhatIf] Would create step"
@@ -323,10 +324,15 @@ function Deploy-DataversePlugins {
                     if ($existingImage) {
                         if (-not $isWhatIf) {
                             Write-Log "      Updating existing image..."
-                            Update-StepImage -ApiUrl $apiUrl -AuthHeaders $authHeaders `
-                                -ImageId $existingImage.sdkmessageprocessingstepimageid -ImageData $imageData
-                            $totalImagesUpdated++
-                            Write-LogSuccess "      Image updated"
+                            try {
+                                Update-StepImage -ApiUrl $apiUrl -AuthHeaders $authHeaders `
+                                    -ImageId $existingImage.sdkmessageprocessingstepimageid -ImageData $imageData
+                                $totalImagesUpdated++
+                                Write-LogSuccess "      Image updated"
+                            }
+                            catch {
+                                Write-LogWarning "      Failed to update image: $($_.Exception.Message)"
+                            }
                         } else {
                             Write-Log "      [WhatIf] Would update image"
                             $totalImagesUpdated++

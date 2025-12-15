@@ -120,12 +120,21 @@ function Update-StepImage {
         [switch]$WhatIf
     )
 
-    $body = @{
-        entityalias = $ImageData.EntityAlias
+    # Only update fields that are updatable after creation
+    # imagetype, name, messagepropertyname, and sdkmessageprocessingstepid are read-only after create
+    $body = @{}
+
+    if ($ImageData.EntityAlias) {
+        $body.entityalias = $ImageData.EntityAlias
     }
 
-    if ($ImageData.Attributes) {
+    if ($null -ne $ImageData.Attributes) {
         $body.attributes = $ImageData.Attributes
+    }
+
+    if ($body.Count -eq 0) {
+        Write-LogDebug "No updatable fields for image, skipping update"
+        return
     }
 
     return Invoke-DataverseApi -ApiUrl $ApiUrl -AuthHeaders $AuthHeaders -Endpoint "sdkmessageprocessingstepimages($ImageId)" -Method PATCH -Body $body -WhatIf:$WhatIf
@@ -157,6 +166,8 @@ function New-PluginType {
         [Parameter(Mandatory = $true)]
         [string]$TypeName,
         [Parameter()]
+        [string]$SolutionUniqueName,
+        [Parameter()]
         [switch]$WhatIf
     )
 
@@ -174,8 +185,18 @@ function New-PluginType {
         return $null
     }
 
+    # Add MSCRM.SolutionUniqueName header for solution association if provided
+    $headersWithSolution = $AuthHeaders
+    if ($SolutionUniqueName) {
+        $headersWithSolution = @{}
+        foreach ($key in $AuthHeaders.Keys) {
+            $headersWithSolution[$key] = $AuthHeaders[$key]
+        }
+        $headersWithSolution["MSCRM.SolutionUniqueName"] = $SolutionUniqueName
+    }
+
     try {
-        $response = Invoke-DataverseApi -ApiUrl $ApiUrl -AuthHeaders $AuthHeaders -Endpoint "plugintypes" -Method POST -Body $body
+        $response = Invoke-DataverseApi -ApiUrl $ApiUrl -AuthHeaders $headersWithSolution -Endpoint "plugintypes" -Method POST -Body $body
         return $response
     }
     catch {
@@ -255,8 +276,8 @@ function Deploy-PluginAssembly {
             # Parse name and version from nupkg filename (e.g., ppds_PackageName.1.0.0.nupkg)
             $filename = [System.IO.Path]::GetFileName($Path)
             $filenameWithoutExt = $filename -replace '\.nupkg$', ''
-            # Find version pattern (e.g., .1.0.0 at the end)
-            if ($filenameWithoutExt -match '^(.+)\.(\d+\.\d+.*)$') {
+            # Find version pattern - require at least X.Y.Z (3 parts) to avoid greedy matching issues
+            if ($filenameWithoutExt -match '^(.+)\.(\d+\.\d+\.\d+.*)$') {
                 $parsedName = $Matches[1]
                 $parsedVersion = $Matches[2]
             } else {
@@ -286,7 +307,17 @@ function Deploy-PluginAssembly {
 
             try {
                 $response = Invoke-DataverseApi -ApiUrl $ApiUrl -AuthHeaders $headersWithSolution -Endpoint "pluginpackages" -Method POST -Body $body
-                Write-LogSuccess "Plugin package registered successfully"
+                $packageId = $response.pluginpackageid
+                Write-LogSuccess "Plugin package registered: $packageId"
+
+                # Explicitly add plugin package to solution (belt and suspenders)
+                if ($SolutionUniqueName -and $packageId) {
+                    Add-SolutionComponent -ApiUrl $ApiUrl -AuthHeaders $AuthHeaders `
+                        -SolutionUniqueName $SolutionUniqueName `
+                        -ComponentId $packageId `
+                        -ComponentType $script:ComponentType.PluginPackage | Out-Null
+                }
+
                 return Get-PluginAssembly -ApiUrl $ApiUrl -AuthHeaders $AuthHeaders -Name $AssemblyName
             }
             catch {
@@ -354,7 +385,22 @@ function Deploy-PluginAssembly {
             try {
                 $response = Invoke-DataverseApi -ApiUrl $ApiUrl -AuthHeaders $AuthHeaders -Endpoint "pluginassemblies" -Method POST -Body $body
                 Write-LogSuccess "Assembly registered successfully"
-                return Get-PluginAssembly -ApiUrl $ApiUrl -AuthHeaders $AuthHeaders -Name $AssemblyName
+
+                # Fetch the registered assembly to get its ID
+                # If this fails, return a synthetic object with the essential info
+                $registeredAssembly = Get-PluginAssembly -ApiUrl $ApiUrl -AuthHeaders $AuthHeaders -Name $AssemblyName
+                if ($registeredAssembly) {
+                    return $registeredAssembly
+                }
+
+                # Fallback: construct minimal object from response if query failed
+                Write-LogDebug "Could not query registered assembly, using response data"
+                return [PSCustomObject]@{
+                    pluginassemblyid = $response.pluginassemblyid
+                    name = $AssemblyName
+                    version = $version
+                    publickeytoken = $publicKeyToken
+                }
             }
             catch {
                 Write-LogError "Failed to register assembly: $($_.Exception.Message)"
