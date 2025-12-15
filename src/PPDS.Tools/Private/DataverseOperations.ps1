@@ -252,17 +252,40 @@ function Deploy-PluginAssembly {
             $bytes = [System.IO.File]::ReadAllBytes($Path)
             $content = [System.Convert]::ToBase64String($bytes)
 
-            $body = @{
-                name = $AssemblyName
-                uniquename = $packageUniqueName
-                content = $content
-                version = "1.0.0"
+            # Parse name and version from nupkg filename (e.g., ppds_PackageName.1.0.0.nupkg)
+            $filename = [System.IO.Path]::GetFileName($Path)
+            $filenameWithoutExt = $filename -replace '\.nupkg$', ''
+            # Find version pattern (e.g., .1.0.0 at the end)
+            if ($filenameWithoutExt -match '^(.+)\.(\d+\.\d+.*)$') {
+                $parsedName = $Matches[1]
+                $parsedVersion = $Matches[2]
+            } else {
+                $parsedName = $filenameWithoutExt
+                $parsedVersion = "1.0.0"
             }
 
-            Write-LogDebug "Package unique name: $packageUniqueName"
+            Write-LogDebug "Package filename: $filename"
+            Write-LogDebug "Parsed name: $parsedName"
+            Write-LogDebug "Parsed version: $parsedVersion"
+            Write-LogDebug "Unique name: $packageUniqueName"
+
+            # Use parsed name for both name and uniquename to ensure prefix consistency
+            $body = @{
+                name = $parsedName
+                uniquename = $parsedName
+                version = $parsedVersion
+                content = $content
+            }
+
+            # Add solution header for plugin package registration
+            $headersWithSolution = @{}
+            foreach ($key in $AuthHeaders.Keys) {
+                $headersWithSolution[$key] = $AuthHeaders[$key]
+            }
+            $headersWithSolution["MSCRM.SolutionUniqueName"] = $SolutionUniqueName
 
             try {
-                $response = Invoke-DataverseApi -ApiUrl $ApiUrl -AuthHeaders $AuthHeaders -Endpoint "pluginpackages" -Method POST -Body $body
+                $response = Invoke-DataverseApi -ApiUrl $ApiUrl -AuthHeaders $headersWithSolution -Endpoint "pluginpackages" -Method POST -Body $body
                 Write-LogSuccess "Plugin package registered successfully"
                 return Get-PluginAssembly -ApiUrl $ApiUrl -AuthHeaders $AuthHeaders -Name $AssemblyName
             }

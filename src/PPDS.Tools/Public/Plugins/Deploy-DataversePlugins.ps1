@@ -12,7 +12,7 @@ function Deploy-DataversePlugins {
         Path to the registrations.json file.
 
     .PARAMETER Connection
-        CrmServiceClient connection object from Connect-DataverseEnvironment.
+        DataverseConnection object from Connect-DataverseEnvironment.
 
     .PARAMETER Force
         Remove orphaned steps that exist in Dataverse but not in configuration.
@@ -43,7 +43,7 @@ function Deploy-DataversePlugins {
         [string]$RegistrationFile,
 
         [Parameter(Mandatory = $true)]
-        [Microsoft.Xrm.Tooling.Connector.CrmServiceClient]$Connection,
+        [DataverseConnection]$Connection,
 
         [Parameter()]
         [switch]$Force,
@@ -111,11 +111,29 @@ function Deploy-DataversePlugins {
 
         # Deploy assembly
         if (-not $SkipAssembly) {
-            $repoRoot = Split-Path $RegistrationFile -Parent
-            $deployPath = if ($asmReg.type -eq "Nuget" -and $asmReg.packagePath) {
-                Join-Path $repoRoot $asmReg.packagePath
+            $registrationDir = Split-Path $RegistrationFile -Parent
+            $rawPath = if ($asmReg.type -eq "Nuget" -and $asmReg.packagePath) {
+                $asmReg.packagePath
             } else {
-                Join-Path $repoRoot $asmReg.path
+                $asmReg.path
+            }
+
+            # Resolve path based on prefix:
+            # - "./" or ".\" = relative to current working directory
+            # - "../" or "..\" = relative to registrations.json location
+            # - absolute path = use as-is
+            # - other relative = relative to registrations.json location
+            if ($rawPath -match '^\.[\\/]') {
+                # Starts with "./" - relative to CWD, strip the "./"
+                $deployPath = Join-Path (Get-Location) ($rawPath -replace '^\.[\\/]', '')
+            }
+            elseif ([System.IO.Path]::IsPathRooted($rawPath)) {
+                # Absolute path - use as-is
+                $deployPath = $rawPath
+            }
+            else {
+                # Relative path (including "../") - relative to registrations.json
+                $deployPath = Join-Path $registrationDir $rawPath
             }
 
             if (-not (Test-Path $deployPath)) {
@@ -144,7 +162,9 @@ function Deploy-DataversePlugins {
             }
             Write-Log "Assembly ID: $($assembly.pluginassemblyid)"
 
-            if ($solutionUniqueName) {
+            # Only add assembly to solution for classic assemblies, not NuGet packages
+            # (NuGet packages are added via the plugin package, not the assembly)
+            if ($solutionUniqueName -and $asmReg.type -ne "Nuget") {
                 Add-SolutionComponent -ApiUrl $apiUrl -AuthHeaders $authHeaders `
                     -SolutionUniqueName $solutionUniqueName `
                     -ComponentId $assembly.pluginassemblyid `
@@ -317,13 +337,8 @@ function Deploy-DataversePlugins {
                             $newImage = New-StepImage -ApiUrl $apiUrl -AuthHeaders $authHeaders -ImageData $imageData
                             $totalImagesCreated++
                             Write-LogSuccess "      Image created"
-
-                            if ($solutionUniqueName -and $newImage.sdkmessageprocessingstepimageid) {
-                                Add-SolutionComponent -ApiUrl $apiUrl -AuthHeaders $authHeaders `
-                                    -SolutionUniqueName $solutionUniqueName `
-                                    -ComponentId $newImage.sdkmessageprocessingstepimageid `
-                                    -ComponentType $script:ComponentType.SdkMessageProcessingStepImage | Out-Null
-                            }
+                            # Note: Step images are subcomponents - they're automatically included
+                            # with their parent step, so we don't add them to the solution separately
                         } else {
                             Write-Log "      [WhatIf] Would create image"
                             $totalImagesCreated++

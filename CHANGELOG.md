@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Breaking**: Replaced `Microsoft.Xrm.Data.PowerShell` dependency with native OAuth2 authentication
+  - Module now works on both PowerShell 5.1 and PowerShell 7+
+  - No external module dependencies for Dataverse connectivity
+- `Connect-DataverseEnvironment` now returns a `DataverseConnection` object instead of `CrmServiceClient`
+  - Same properties available: `CurrentAccessToken`, `ConnectedOrgFriendlyName`, `ConnectedOrgPublishedEndpoints`
+- Interactive authentication now uses device code flow instead of browser redirect
+  - More reliable across different environments (SSH, containers, corporate proxies)
+
+### Added
+
+- Native OAuth2 implementation for service principal (client credentials) authentication
+- Device code flow for interactive authentication (`-Interactive` flag)
+- `DataverseConnection` class with token expiry tracking
+
+### Fixed
+
+- Path resolution in `Deploy-DataversePlugins` now correctly handles paths starting with `./`
+  - `./path` resolves relative to current working directory
+  - `../path` resolves relative to registrations.json location
+  - Absolute paths used as-is
+- Plugin package registration now correctly parses name/version from nupkg filename
+- Plugin package registration now uses `MSCRM.SolutionUniqueName` header for solution association
+- Skip adding Plugin Assembly to solution for NuGet packages (package contains the assembly)
+- Skip adding Step Images to solution (they're subcomponents of Steps, added automatically)
+
+### Removed
+
+- Dependency on `Microsoft.Xrm.Data.PowerShell` module
+- PowerShell 7.0 minimum requirement (now supports 5.1+)
+
 ## [1.0.0] - 2025-12-13
 
 ### Added
@@ -35,4 +69,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Requires PowerShell 7.0+
 - Requires Microsoft.Xrm.Data.PowerShell module for Dataverse connectivity
 
+[Unreleased]: https://github.com/joshsmithxrm/ppds-tools/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/joshsmithxrm/ppds-tools/releases/tag/v1.0.0

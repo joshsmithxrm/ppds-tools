@@ -10,8 +10,8 @@
     Copyright = '(c) 2025 Josh Smith. MIT License.'
     Description = 'PowerShell tools for Dataverse plugin deployment, drift detection, and CI/CD automation. Part of the Power Platform Developer Suite.'
 
-    # Requirements
-    PowerShellVersion = '7.0'
+    # Requirements - works on both PS 5.1 and PS 7+
+    PowerShellVersion = '5.1'
 
     # Exported members
     FunctionsToExport = @(

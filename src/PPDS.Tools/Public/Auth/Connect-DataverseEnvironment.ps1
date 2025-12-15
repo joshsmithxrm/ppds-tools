@@ -8,10 +8,10 @@ function Connect-DataverseEnvironment {
         the authentication hierarchy:
         1. Explicit parameters (ConnectionString or SPN credentials)
         2. Environment variables (from .env file)
-        3. Interactive OAuth (if -Interactive specified)
+        3. Interactive device code flow (if -Interactive specified)
 
     .PARAMETER ConnectionString
-        Full connection string for Dataverse.
+        Full connection string for Dataverse (legacy support - extracts URL and uses SPN auth).
 
     .PARAMETER EnvironmentUrl
         The Dataverse environment URL (e.g., https://myorg.crm.dynamics.com).
@@ -29,18 +29,18 @@ function Connect-DataverseEnvironment {
         Path to .env file with credentials.
 
     .PARAMETER Interactive
-        Use interactive browser-based OAuth login.
+        Use interactive device code flow for authentication.
 
     .EXAMPLE
         Connect-DataverseEnvironment -EnvironmentUrl "https://myorg.crm.dynamics.com" -Interactive
-        Connects using browser-based authentication.
+        Connects using device code flow (opens browser for authentication).
 
     .EXAMPLE
         Connect-DataverseEnvironment -ClientId $id -ClientSecret $secret -TenantId $tenant -EnvironmentUrl $url
         Connects using service principal credentials.
 
     .OUTPUTS
-        Microsoft.Xrm.Tooling.Connector.CrmServiceClient
+        DataverseConnection object with access token and environment information.
     #>
     [CmdletBinding()]
     param(
@@ -66,14 +66,6 @@ function Connect-DataverseEnvironment {
         [switch]$Interactive
     )
 
-    # Ensure module is available
-    if (-not (Get-Module -ListAvailable -Name Microsoft.Xrm.Data.PowerShell)) {
-        Write-LogError "Microsoft.Xrm.Data.PowerShell module not found."
-        Write-Log "Install with: Install-Module Microsoft.Xrm.Data.PowerShell -Scope CurrentUser"
-        throw "Required module not installed"
-    }
-    Import-Module Microsoft.Xrm.Data.PowerShell -ErrorAction Stop
-
     # Load environment file if specified or by default
     if (-not [string]::IsNullOrWhiteSpace($EnvFile)) {
         Import-EnvFile -Path $EnvFile | Out-Null
@@ -83,31 +75,58 @@ function Connect-DataverseEnvironment {
         Import-EnvFile | Out-Null
     }
 
-    # Build connection string using hierarchy
-    $finalConnectionString = $null
+    # Determine authentication method and parameters
     $authMethod = $null
+    $finalUrl = $null
+    $finalClientId = $null
+    $finalClientSecret = $null
+    $finalTenantId = $null
 
-    # Priority 1: Explicit connection string
+    # Priority 1: Explicit connection string (parse it for credentials)
     if (-not [string]::IsNullOrWhiteSpace($ConnectionString)) {
-        $finalConnectionString = $ConnectionString
-        $authMethod = "Explicit Connection String"
+        $parsed = @{}
+        $ConnectionString -split ";" | ForEach-Object {
+            $parts = $_ -split "=", 2
+            if ($parts.Count -eq 2) {
+                $parsed[$parts[0].Trim()] = $parts[1].Trim()
+            }
+        }
+
+        $finalUrl = $parsed["Url"]
+        if ($parsed["AuthType"] -eq "ClientSecret") {
+            $finalClientId = $parsed["ClientId"]
+            $finalClientSecret = $parsed["ClientSecret"]
+            # Try to extract tenant from URL or use common
+            $finalTenantId = if ($TenantId) { $TenantId } else { "organizations" }
+            $authMethod = "Connection String (Service Principal)"
+        }
+        elseif ($parsed["AuthType"] -eq "OAuth") {
+            # OAuth connection string - use interactive
+            $Interactive = $true
+            $authMethod = "Connection String (Interactive)"
+        }
+        else {
+            throw "Unsupported AuthType in connection string. Supported: ClientSecret, OAuth"
+        }
     }
     # Priority 2: Explicit SPN parameters
     elseif (-not [string]::IsNullOrWhiteSpace($ClientId) -and
             -not [string]::IsNullOrWhiteSpace($ClientSecret) -and
             -not [string]::IsNullOrWhiteSpace($TenantId)) {
 
-        $url = if (-not [string]::IsNullOrWhiteSpace($EnvironmentUrl)) {
+        $finalUrl = if (-not [string]::IsNullOrWhiteSpace($EnvironmentUrl)) {
             $EnvironmentUrl
         } else {
             Get-EnvVar "DATAVERSE_URL"
         }
 
-        if ([string]::IsNullOrWhiteSpace($url)) {
+        if ([string]::IsNullOrWhiteSpace($finalUrl)) {
             throw "EnvironmentUrl required when using service principal parameters"
         }
 
-        $finalConnectionString = "AuthType=ClientSecret;Url=$url;ClientId=$ClientId;ClientSecret=$ClientSecret"
+        $finalClientId = $ClientId
+        $finalClientSecret = $ClientSecret
+        $finalTenantId = $TenantId
         $authMethod = "Service Principal (Parameters)"
     }
     # Priority 3: Environment variables for SPN
@@ -117,7 +136,7 @@ function Connect-DataverseEnvironment {
         $envClientSecret = Get-EnvVar "SP_CLIENT_SECRET"
         $envTenantId = Get-EnvVar "SP_TENANT_ID"
 
-        $url = if (-not [string]::IsNullOrWhiteSpace($EnvironmentUrl)) {
+        $finalUrl = if (-not [string]::IsNullOrWhiteSpace($EnvironmentUrl)) {
             $EnvironmentUrl
         } else {
             $envUrl
@@ -125,47 +144,53 @@ function Connect-DataverseEnvironment {
 
         if (-not [string]::IsNullOrWhiteSpace($envClientId) -and
             -not [string]::IsNullOrWhiteSpace($envClientSecret) -and
-            -not [string]::IsNullOrWhiteSpace($url)) {
+            -not [string]::IsNullOrWhiteSpace($finalUrl)) {
 
-            $finalConnectionString = "AuthType=ClientSecret;Url=$url;ClientId=$envClientId;ClientSecret=$envClientSecret"
+            $finalClientId = $envClientId
+            $finalClientSecret = $envClientSecret
+            $finalTenantId = if ($envTenantId) { $envTenantId } else { "organizations" }
             $authMethod = "Service Principal (Environment)"
         }
-        # Priority 4: Interactive OAuth
+        # Priority 4: Interactive device code flow
         elseif ($Interactive) {
-            if ([string]::IsNullOrWhiteSpace($url)) {
+            if ([string]::IsNullOrWhiteSpace($finalUrl)) {
                 throw "EnvironmentUrl required for interactive authentication"
             }
-
-            $finalConnectionString = "AuthType=OAuth;Url=$url;AppId=51f81489-12ee-4a9e-aaae-a2591f45987d;RedirectUri=http://localhost;LoginPrompt=Auto"
-            $authMethod = "Interactive OAuth"
+            $authMethod = "Interactive (Device Code)"
         }
         else {
             Write-LogError "No authentication method available."
             Write-Log "Options:"
             Write-Log "  1. Provide -ConnectionString parameter"
             Write-Log "  2. Provide -ClientId, -ClientSecret, -TenantId, -EnvironmentUrl parameters"
-            Write-Log "  3. Create .env.dev file with SP_APPLICATION_ID, SP_CLIENT_SECRET, DATAVERSE_URL"
-            Write-Log "  4. Use -Interactive flag for browser-based login"
+            Write-Log "  3. Create .env.dev file with SP_APPLICATION_ID, SP_CLIENT_SECRET, SP_TENANT_ID, DATAVERSE_URL"
+            Write-Log "  4. Use -Interactive flag for device code authentication"
             throw "No authentication credentials available"
         }
     }
 
-    # Log connection attempt (redacted)
-    $sanitized = $finalConnectionString -replace "(ClientSecret=)[^;]+", '$1***REDACTED***'
+    # Log connection attempt
     Write-Log "Auth method: $authMethod"
-    Write-LogDebug "Connection: $sanitized"
+    Write-Log "Environment: $finalUrl"
 
-    # Connect
+    # Connect using appropriate method
     try {
-        Write-Log "Connecting to Dataverse..."
-        $conn = Get-CrmConnection -ConnectionString $finalConnectionString
+        if ($authMethod -eq "Interactive (Device Code)" -or $authMethod -eq "Connection String (Interactive)") {
+            Write-Log "Starting interactive authentication..."
+            $tenantForInteractive = if ($finalTenantId) { $finalTenantId } else { "organizations" }
+            $connection = New-DataverseConnectionInteractive -EnvironmentUrl $finalUrl -TenantId $tenantForInteractive
+        }
+        else {
+            Write-Log "Connecting to Dataverse..."
+            $connection = New-DataverseConnection -EnvironmentUrl $finalUrl -TenantId $finalTenantId -ClientId $finalClientId -ClientSecret $finalClientSecret
+        }
 
-        if (-not $conn -or -not $conn.IsReady) {
+        if (-not $connection -or -not $connection.IsReady) {
             throw "Connection failed - IsReady is false"
         }
 
-        Write-LogSuccess "Connected to: $($conn.ConnectedOrgFriendlyName)"
-        return $conn
+        Write-LogSuccess "Connected to: $($connection.ConnectedOrgFriendlyName)"
+        return $connection
     }
     catch {
         Write-LogError "Connection failed: $($_.Exception.Message)"

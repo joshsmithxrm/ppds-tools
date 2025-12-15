@@ -80,7 +80,7 @@ function Get-WebApiBaseUrl {
     #>
     param(
         [Parameter(Mandatory = $true)]
-        [Microsoft.Xrm.Tooling.Connector.CrmServiceClient]$Connection
+        [DataverseConnection]$Connection
     )
 
     $webAppUrl = $Connection.ConnectedOrgPublishedEndpoints["WebApplication"].TrimEnd("/")
@@ -92,13 +92,13 @@ function Get-AuthHeaders {
     .SYNOPSIS
         Gets HTTP headers for Dataverse Web API calls.
     .PARAMETER Connection
-        CrmServiceClient connection object.
+        DataverseConnection object from Connect-DataverseEnvironment.
     .PARAMETER SolutionName
         Optional solution name to include in headers.
     #>
     param(
         [Parameter(Mandatory = $true)]
-        [Microsoft.Xrm.Tooling.Connector.CrmServiceClient]$Connection,
+        [DataverseConnection]$Connection,
         [string]$SolutionName
     )
 
