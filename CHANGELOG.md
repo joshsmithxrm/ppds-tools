@@ -2,10 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+### Added
+
+- PSScriptAnalyzer linting in CI pipeline (errors + warnings fail build)
+- Unit tests for JSON serialization utilities
+- Code coverage reporting with 80% threshold
+- Pester test tags for categorization (Unit, Integration)
+- Native OAuth2 implementation for service principal (client credentials) authentication
+- Device code flow for interactive authentication (`-Interactive` flag)
+- `DataverseConnection` class with token expiry tracking
 
 ### Changed
 
@@ -16,17 +26,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Same properties available: `CurrentAccessToken`, `ConnectedOrgFriendlyName`, `ConnectedOrgPublishedEndpoints`
 - Interactive authentication now uses device code flow instead of browser redirect
   - More reliable across different environments (SSH, containers, corporate proxies)
+- Extracted shared assembly resolution logic to `Invoke-WithAssemblyResolution`
+- Refactored large public functions into smaller private helpers
+- Moved OAuth AppId to module constant for maintainability
 - Plugin type registration now uses `MSCRM.SolutionUniqueName` header for solution association (matches extension pattern)
 - Plugin package registration uses `MSCRM.SolutionUniqueName` header (no separate AddSolutionComponent call needed)
 
-### Added
-
-- Native OAuth2 implementation for service principal (client credentials) authentication
-- Device code flow for interactive authentication (`-Interactive` flag)
-- `DataverseConnection` class with token expiry tracking
-
 ### Fixed
 
+- OData query issues when filter values contain single quotes (proper escaping)
 - Path resolution in `Deploy-DataversePlugins` now correctly handles paths starting with `./`
   - `./path` resolves relative to current working directory
   - Other relative paths (including `../`) resolve relative to registrations.json location
@@ -40,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Added input escaping for OData filter values to prevent injection
 - **Removed storage of `ClientSecret` and `RefreshToken` in `DataverseConnection` object**
   - Long-lived credentials are no longer stored after authentication
   - Only the time-limited access token (~60 min) is retained

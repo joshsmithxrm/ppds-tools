@@ -1,3 +1,26 @@
+# OData string escaping utility
+function Get-EscapedODataString {
+    <#
+    .SYNOPSIS
+        Escapes a string value for use in OData filter expressions.
+    .DESCRIPTION
+        OData string literals use single quotes. To include a single quote
+        in a string value, it must be doubled (escaped as '').
+    .PARAMETER Value
+        The string value to escape.
+    .OUTPUTS
+        The escaped string safe for use in OData $filter expressions.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$Value
+    )
+
+    # OData escapes single quotes by doubling them
+    return $Value -replace "'", "''"
+}
+
 # Constants for stage/mode/image type mappings
 $script:PluginStageMap = @{
     10 = "PreValidation"
@@ -48,7 +71,8 @@ function Get-PluginAssembly {
         [string]$Name
     )
 
-    $filter = "`$filter=name eq '$Name'"
+    $escapedName = Get-EscapedODataString -Value $Name
+    $filter = "`$filter=name eq '$escapedName'"
     $select = "`$select=pluginassemblyid,name,version,publickeytoken"
     $result = Invoke-DataverseApi -ApiUrl $ApiUrl -AuthHeaders $AuthHeaders -Endpoint "pluginassemblies?$filter&$select" -Method GET
     return $result.value | Select-Object -First 1
@@ -69,13 +93,15 @@ function Get-PluginPackage {
     $select = "`$select=pluginpackageid,name,uniquename,version"
     try {
         if ($UniqueName) {
-            $filter = "`$filter=uniquename eq '$UniqueName'"
+            $escapedUniqueName = Get-EscapedODataString -Value $UniqueName
+            $filter = "`$filter=uniquename eq '$escapedUniqueName'"
             $result = Invoke-DataverseApi -ApiUrl $ApiUrl -AuthHeaders $AuthHeaders -Endpoint "pluginpackages?$filter&$select" -Method GET
             $package = $result.value | Select-Object -First 1
             if ($package) { return $package }
         }
 
-        $filter = "`$filter=name eq '$Name'"
+        $escapedName = Get-EscapedODataString -Value $Name
+        $filter = "`$filter=name eq '$escapedName'"
         $result = Invoke-DataverseApi -ApiUrl $ApiUrl -AuthHeaders $AuthHeaders -Endpoint "pluginpackages?$filter&$select" -Method GET
         return $result.value | Select-Object -First 1
     }
@@ -97,7 +123,8 @@ function Get-PluginType {
         [string]$TypeName
     )
 
-    $filter = "`$filter=_pluginassemblyid_value eq '$AssemblyId' and typename eq '$TypeName'"
+    $escapedTypeName = Get-EscapedODataString -Value $TypeName
+    $filter = "`$filter=_pluginassemblyid_value eq '$AssemblyId' and typename eq '$escapedTypeName'"
     $select = "`$select=plugintypeid,typename,friendlyname"
     $result = Invoke-DataverseApi -ApiUrl $ApiUrl -AuthHeaders $AuthHeaders -Endpoint "plugintypes?$filter&$select" -Method GET
     return $result.value | Select-Object -First 1
@@ -165,7 +192,8 @@ function Get-SdkMessage {
         [string]$MessageName
     )
 
-    $filter = "`$filter=name eq '$MessageName'"
+    $escapedMessageName = Get-EscapedODataString -Value $MessageName
+    $filter = "`$filter=name eq '$escapedMessageName'"
     $select = "`$select=sdkmessageid,name"
     $result = Invoke-DataverseApi -ApiUrl $ApiUrl -AuthHeaders $AuthHeaders -Endpoint "sdkmessages?$filter&$select" -Method GET
     return $result.value | Select-Object -First 1
@@ -185,9 +213,11 @@ function Get-SdkMessageFilter {
         [string]$SecondaryEntityLogicalName
     )
 
-    $filter = "_sdkmessageid_value eq '$MessageId' and primaryobjecttypecode eq '$EntityLogicalName'"
+    $escapedEntity = Get-EscapedODataString -Value $EntityLogicalName
+    $filter = "_sdkmessageid_value eq '$MessageId' and primaryobjecttypecode eq '$escapedEntity'"
     if ($SecondaryEntityLogicalName) {
-        $filter += " and secondaryobjecttypecode eq '$SecondaryEntityLogicalName'"
+        $escapedSecondary = Get-EscapedODataString -Value $SecondaryEntityLogicalName
+        $filter += " and secondaryobjecttypecode eq '$escapedSecondary'"
     }
 
     $select = "`$select=sdkmessagefilterid,primaryobjecttypecode,secondaryobjecttypecode"
@@ -205,7 +235,8 @@ function Get-ProcessingStep {
         [string]$StepName
     )
 
-    $filter = "`$filter=name eq '$StepName'"
+    $escapedStepName = Get-EscapedODataString -Value $StepName
+    $filter = "`$filter=name eq '$escapedStepName'"
     $select = "`$select=sdkmessageprocessingstepid,name,stage,mode,rank,filteringattributes,configuration"
     $result = Invoke-DataverseApi -ApiUrl $ApiUrl -AuthHeaders $AuthHeaders -Endpoint "sdkmessageprocessingsteps?$filter&$select" -Method GET
     return $result.value | Select-Object -First 1
@@ -261,7 +292,8 @@ function Get-Solution {
         [string]$UniqueName
     )
 
-    $filter = "`$filter=uniquename eq '$UniqueName'"
+    $escapedUniqueName = Get-EscapedODataString -Value $UniqueName
+    $filter = "`$filter=uniquename eq '$escapedUniqueName'"
     $select = "`$select=solutionid,uniquename,friendlyname,version"
     $expand = "`$expand=publisherid(`$select=customizationprefix,uniquename)"
     try {
@@ -317,7 +349,7 @@ function Add-SolutionComponent {
     }
 
     try {
-        $result = Invoke-DataverseApi -ApiUrl $ApiUrl -AuthHeaders $AuthHeaders -Endpoint "AddSolutionComponent" -Method POST -Body $body
+        $null = Invoke-DataverseApi -ApiUrl $ApiUrl -AuthHeaders $AuthHeaders -Endpoint "AddSolutionComponent" -Method POST -Body $body
         Write-LogDebug "Added $componentTypeName to solution '$SolutionUniqueName'"
         return $true
     }
