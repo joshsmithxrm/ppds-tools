@@ -2,7 +2,7 @@
 
 **PowerShell module for Dataverse plugin deployment and automation.**
 
-**Part of the PPDS Ecosystem** - See `C:\VS\ppds\CLAUDE.md` for cross-project context.
+**Part of the PPDS Ecosystem** - See `../CLAUDE.md` for cross-project context.
 
 ---
 
@@ -10,7 +10,7 @@
 
 | Rule | Why |
 |------|-----|
-| Use `powershell` instead of `pwsh` | PowerShell 7+ required; `powershell` is Windows PowerShell 5.1 |
+| Use `powershell.exe` to invoke scripts | Use `pwsh` - module requires PowerShell 7+ |
 | Skip `[CmdletBinding()]` on public functions | Breaks common parameters (-Verbose, -Debug, etc.) |
 | Use `Write-Host` for output | Breaks pipeline; use `Write-Output` or return objects |
 | Hardcode environment URLs | Breaks portability; always accept as parameter |
