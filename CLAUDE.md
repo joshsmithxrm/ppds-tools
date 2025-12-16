@@ -192,3 +192,24 @@ Describe 'Get-DataversePluginRegistrations' {
 | `PPDS.Tools.psm1` | Root module (dot-sources Public/Private) |
 | `CHANGELOG.md` | Release notes |
 | `plugin-registration.schema.json` | JSON schema for registration files |
+
+---
+
+## Testing Requirements
+
+- **Target 80% code coverage.** Pester tests must pass before PR.
+- Unit tests for all public cmdlets
+- Mock Dataverse calls in tests (no live environment required for unit tests)
+- Run `Invoke-Pester ./tests -Output Detailed` before submitting PR
+
+---
+
+## Decision Presentation
+
+When presenting choices or asking questions:
+1. **Lead with your recommendation** and rationale
+2. **List alternatives considered** and why they're not preferred
+3. **Ask for confirmation**, not open-ended input
+
+❌ "What testing approach should we use?"
+✅ "I recommend X because Y. Alternatives considered: A (rejected because B), C (rejected because D). Do you agree?"
