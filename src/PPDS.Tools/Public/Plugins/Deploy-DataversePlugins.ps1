@@ -23,7 +23,7 @@ function Deploy-DataversePlugins {
         Path to the registrations.json file.
 
     .PARAMETER Connection
-        CrmServiceClient connection object from Connect-DataverseEnvironment.
+        DataverseConnection object from Connect-DataverseEnvironment.
 
     .PARAMETER Force
         Remove orphaned steps that exist in Dataverse but not in configuration.
@@ -54,7 +54,7 @@ function Deploy-DataversePlugins {
         [string]$RegistrationFile,
 
         [Parameter(Mandatory = $true)]
-        [Microsoft.Xrm.Tooling.Connector.CrmServiceClient]$Connection,
+        [DataverseConnection]$Connection,
 
         [Parameter()]
         [switch]$Force,
@@ -122,11 +122,28 @@ function Deploy-DataversePlugins {
 
         # Deploy assembly
         if (-not $SkipAssembly) {
-            $repoRoot = Split-Path $RegistrationFile -Parent
-            $deployPath = if ($asmReg.type -eq "Nuget" -and $asmReg.packagePath) {
-                Join-Path $repoRoot $asmReg.packagePath
+            $registrationDir = Split-Path $RegistrationFile -Parent
+            $rawPath = if ($asmReg.type -eq "Nuget" -and $asmReg.packagePath) {
+                $asmReg.packagePath
             } else {
-                Join-Path $repoRoot $asmReg.path
+                $asmReg.path
+            }
+
+            # Resolve path based on prefix:
+            # - "./" or ".\" = relative to current working directory
+            # - absolute path = use as-is
+            # - other relative paths (including "../") = relative to registrations.json location
+            if ($rawPath -match '^\.[\\/]') {
+                # Starts with "./" - relative to CWD, strip the "./"
+                $deployPath = Join-Path (Get-Location) ($rawPath -replace '^\.[\\/]', '')
+            }
+            elseif ([System.IO.Path]::IsPathRooted($rawPath)) {
+                # Absolute path - use as-is
+                $deployPath = $rawPath
+            }
+            else {
+                # Relative path (including "../") - relative to registrations.json
+                $deployPath = Join-Path $registrationDir $rawPath
             }
 
             if (-not (Test-Path $deployPath)) {
@@ -155,7 +172,9 @@ function Deploy-DataversePlugins {
             }
             Write-Log "Assembly ID: $($assembly.pluginassemblyid)"
 
-            if ($solutionUniqueName) {
+            # Only add assembly to solution for classic assemblies, not NuGet packages
+            # (NuGet packages are added via the plugin package, not the assembly)
+            if ($solutionUniqueName -and $asmReg.type -ne "Nuget") {
                 Add-SolutionComponent -ApiUrl $apiUrl -AuthHeaders $authHeaders `
                     -SolutionUniqueName $solutionUniqueName `
                     -ComponentId $assembly.pluginassemblyid `
@@ -178,15 +197,10 @@ function Deploy-DataversePlugins {
                 if (-not $pluginType -and $plugin.steps.Count -gt 0 -and $asmReg.type -eq "Assembly") {
                     Write-Log "  Registering new plugin type: $($plugin.typeName)"
                     $pluginType = New-PluginType -ApiUrl $apiUrl -AuthHeaders $authHeaders `
-                        -AssemblyId $assembly.pluginassemblyid -TypeName $plugin.typeName
+                        -AssemblyId $assembly.pluginassemblyid -TypeName $plugin.typeName `
+                        -SolutionUniqueName $solutionUniqueName
                     if ($pluginType) {
                         Write-LogSuccess "  Plugin type created"
-                        if ($solutionUniqueName) {
-                            Add-SolutionComponent -ApiUrl $apiUrl -AuthHeaders $authHeaders `
-                                -SolutionUniqueName $solutionUniqueName `
-                                -ComponentId $pluginType.plugintypeid `
-                                -ComponentType $script:ComponentType.PluginType | Out-Null
-                        }
                     }
                 }
                 elseif (-not $pluginType -and $plugin.steps.Count -gt 0) {
@@ -261,10 +275,13 @@ function Deploy-DataversePlugins {
                         Write-LogSuccess "    Step updated"
 
                         if ($solutionUniqueName) {
-                            Add-SolutionComponent -ApiUrl $apiUrl -AuthHeaders $authHeaders `
+                            $addResult = Add-SolutionComponent -ApiUrl $apiUrl -AuthHeaders $authHeaders `
                                 -SolutionUniqueName $solutionUniqueName `
                                 -ComponentId $stepId `
-                                -ComponentType $script:ComponentType.SdkMessageProcessingStep | Out-Null
+                                -ComponentType $script:ComponentType.SdkMessageProcessingStep
+                            if ($addResult) {
+                                Write-LogDebug "    Step added to solution"
+                            }
                         }
                     } else {
                         Write-Log "    [WhatIf] Would update step"
@@ -279,10 +296,13 @@ function Deploy-DataversePlugins {
                         Write-LogSuccess "    Step created"
 
                         if ($solutionUniqueName) {
-                            Add-SolutionComponent -ApiUrl $apiUrl -AuthHeaders $authHeaders `
+                            $addResult = Add-SolutionComponent -ApiUrl $apiUrl -AuthHeaders $authHeaders `
                                 -SolutionUniqueName $solutionUniqueName `
                                 -ComponentId $stepId `
-                                -ComponentType $script:ComponentType.SdkMessageProcessingStep | Out-Null
+                                -ComponentType $script:ComponentType.SdkMessageProcessingStep
+                            if ($addResult) {
+                                Write-LogDebug "    Step added to solution"
+                            }
                         }
                     } else {
                         Write-Log "    [WhatIf] Would create step"
@@ -318,10 +338,15 @@ function Deploy-DataversePlugins {
                     if ($existingImage) {
                         if (-not $isWhatIf) {
                             Write-Log "      Updating existing image..."
-                            Update-StepImage -ApiUrl $apiUrl -AuthHeaders $authHeaders `
-                                -ImageId $existingImage.sdkmessageprocessingstepimageid -ImageData $imageData
-                            $totalImagesUpdated++
-                            Write-LogSuccess "      Image updated"
+                            try {
+                                Update-StepImage -ApiUrl $apiUrl -AuthHeaders $authHeaders `
+                                    -ImageId $existingImage.sdkmessageprocessingstepimageid -ImageData $imageData
+                                $totalImagesUpdated++
+                                Write-LogSuccess "      Image updated"
+                            }
+                            catch {
+                                Write-LogWarning "      Failed to update image: $($_.Exception.Message)"
+                            }
                         } else {
                             Write-Log "      [WhatIf] Would update image"
                             $totalImagesUpdated++
@@ -329,15 +354,15 @@ function Deploy-DataversePlugins {
                     } else {
                         if (-not $isWhatIf) {
                             Write-Log "      Creating new image..."
-                            $newImage = New-StepImage -ApiUrl $apiUrl -AuthHeaders $authHeaders -ImageData $imageData
-                            $totalImagesCreated++
-                            Write-LogSuccess "      Image created"
-
-                            if ($solutionUniqueName -and $newImage.sdkmessageprocessingstepimageid) {
-                                Add-SolutionComponent -ApiUrl $apiUrl -AuthHeaders $authHeaders `
-                                    -SolutionUniqueName $solutionUniqueName `
-                                    -ComponentId $newImage.sdkmessageprocessingstepimageid `
-                                    -ComponentType $script:ComponentType.SdkMessageProcessingStepImage | Out-Null
+                            try {
+                                $null = New-StepImage -ApiUrl $apiUrl -AuthHeaders $authHeaders -ImageData $imageData
+                                $totalImagesCreated++
+                                Write-LogSuccess "      Image created"
+                                # Note: Step images are subcomponents - they're automatically included
+                                # with their parent step, so we don't add them to the solution separately
+                            }
+                            catch {
+                                Write-LogWarning "      Failed to create image: $($_.Exception.Message)"
                             }
                         } else {
                             Write-Log "      [WhatIf] Would create image"

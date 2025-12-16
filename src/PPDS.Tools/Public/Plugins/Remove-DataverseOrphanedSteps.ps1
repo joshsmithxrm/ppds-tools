@@ -12,7 +12,7 @@ function Remove-DataverseOrphanedSteps {
         Path to the registrations.json file.
 
     .PARAMETER Connection
-        CrmServiceClient connection object from Connect-DataverseEnvironment.
+        DataverseConnection object from Connect-DataverseEnvironment.
 
     .PARAMETER AssemblyName
         Specific assembly name to clean up. If not provided, cleans all assemblies.
@@ -37,7 +37,7 @@ function Remove-DataverseOrphanedSteps {
         [string]$RegistrationFile,
 
         [Parameter(Mandatory = $true)]
-        [Microsoft.Xrm.Tooling.Connector.CrmServiceClient]$Connection,
+        [DataverseConnection]$Connection,
 
         [Parameter()]
         [string]$AssemblyName

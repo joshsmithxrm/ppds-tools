@@ -12,7 +12,7 @@ function Get-DataversePluginDrift {
         Path to the registrations.json file to compare.
 
     .PARAMETER Connection
-        CrmServiceClient connection object. If not provided, uses current PAC CLI context.
+        DataverseConnection object from Connect-DataverseEnvironment.
 
     .PARAMETER AssemblyName
         Specific assembly name to check. If not provided, checks all assemblies in the file.
@@ -33,8 +33,8 @@ function Get-DataversePluginDrift {
         [Parameter(Mandatory = $true)]
         [string]$RegistrationFile,
 
-        [Parameter()]
-        [Microsoft.Xrm.Tooling.Connector.CrmServiceClient]$Connection,
+        [Parameter(Mandatory = $true)]
+        [DataverseConnection]$Connection,
 
         [Parameter()]
         [string]$AssemblyName
@@ -50,13 +50,8 @@ function Get-DataversePluginDrift {
     }
 
     # Get API connection
-    if ($Connection) {
-        $apiUrl = Get-WebApiBaseUrl -Connection $Connection
-        $authHeaders = Get-AuthHeaders -Connection $Connection
-    }
-    else {
-        throw "Connection required. Use Connect-DataverseEnvironment first."
-    }
+    $apiUrl = Get-WebApiBaseUrl -Connection $Connection
+    $authHeaders = Get-AuthHeaders -Connection $Connection
 
     $allDriftReports = @()
 
