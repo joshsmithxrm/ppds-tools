@@ -41,7 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Dependency on `Microsoft.Xrm.Data.PowerShell` module
 - PowerShell 7.0 minimum requirement (now supports 5.1+)
-- Unused component types from `$script:ComponentType` (PluginType, PluginPackage, SdkMessageProcessingStepImage - only PluginAssembly and SdkMessageProcessingStep remain)
+- Unused component types from `$script:ComponentType` (PluginType, SdkMessageProcessingStepImage - only PluginAssembly and SdkMessageProcessingStep remain)
 
 ## [1.0.0] - 2025-12-13
 

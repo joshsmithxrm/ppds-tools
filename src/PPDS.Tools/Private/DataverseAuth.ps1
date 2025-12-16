@@ -142,7 +142,12 @@ function Get-DataverseTokenDeviceCode {
                 throw "Device code expired. Please try again."
             }
             else {
-                throw "Authentication failed: $($errorBody.error_description)"
+                if ($errorBody.error_description) {
+                    throw "Authentication failed: $($errorBody.error_description)"
+                }
+                else {
+                    throw "Authentication failed: $($_.Exception.Message)"
+                }
             }
         }
     }

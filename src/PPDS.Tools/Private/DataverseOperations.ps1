@@ -188,10 +188,7 @@ function New-PluginType {
     # Add MSCRM.SolutionUniqueName header for solution association if provided
     $headersWithSolution = $AuthHeaders
     if ($SolutionUniqueName) {
-        $headersWithSolution = @{}
-        foreach ($key in $AuthHeaders.Keys) {
-            $headersWithSolution[$key] = $AuthHeaders[$key]
-        }
+        $headersWithSolution = $AuthHeaders.Clone()
         $headersWithSolution["MSCRM.SolutionUniqueName"] = $SolutionUniqueName
     }
 
@@ -277,7 +274,7 @@ function Deploy-PluginAssembly {
             $filename = [System.IO.Path]::GetFileName($Path)
             $filenameWithoutExt = $filename -replace '\.nupkg$', ''
             # Find version pattern - require at least X.Y.Z (3 parts) to avoid greedy matching issues
-            if ($filenameWithoutExt -match '^(.+)\.(\d+\.\d+\.\d+.*)$') {
+            if ($filenameWithoutExt -match '^(.+?)\.(\d+\.\d+\.\d+.*)$') {
                 $parsedName = $Matches[1]
                 $parsedVersion = $Matches[2]
             } else {
@@ -299,10 +296,7 @@ function Deploy-PluginAssembly {
             }
 
             # Add solution header for plugin package registration
-            $headersWithSolution = @{}
-            foreach ($key in $AuthHeaders.Keys) {
-                $headersWithSolution[$key] = $AuthHeaders[$key]
-            }
+            $headersWithSolution = $AuthHeaders.Clone()
             $headersWithSolution["MSCRM.SolutionUniqueName"] = $SolutionUniqueName
 
             try {
