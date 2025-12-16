@@ -33,3 +33,4 @@ obj/
 # Claude Code settings (local)
 .claude/settings.local.json
 *.local.json
+nul
