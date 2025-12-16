@@ -355,7 +355,7 @@ function Deploy-DataversePlugins {
                         if (-not $isWhatIf) {
                             Write-Log "      Creating new image..."
                             try {
-                                $newImage = New-StepImage -ApiUrl $apiUrl -AuthHeaders $authHeaders -ImageData $imageData
+                                $null = New-StepImage -ApiUrl $apiUrl -AuthHeaders $authHeaders -ImageData $imageData
                                 $totalImagesCreated++
                                 Write-LogSuccess "      Image created"
                                 # Note: Step images are subcomponents - they're automatically included
