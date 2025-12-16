@@ -84,7 +84,8 @@ function Connect-DataverseEnvironment {
 
     # Priority 1: Explicit connection string (parse it for credentials)
     if (-not [string]::IsNullOrWhiteSpace($ConnectionString)) {
-        $parsed = @{}
+        # Use case-insensitive hashtable for connection string keys
+        $parsed = [System.Collections.Generic.Dictionary[string,string]]::new([System.StringComparer]::OrdinalIgnoreCase)
         $ConnectionString -split ";" | ForEach-Object {
             $parts = $_ -split "=", 2
             if ($parts.Count -eq 2) {

@@ -232,10 +232,10 @@ function New-DataverseConnection {
         $orgInfo.OrgName
     )
 
-    # Store auth context for potential token refresh
+    # Store auth context (non-sensitive only)
     $connection.TenantId = $TenantId
     $connection.ClientId = $ClientId
-    $connection.ClientSecret = $ClientSecret
+    $connection.AuthMethod = "ServicePrincipal"
 
     return $connection
 }
@@ -271,10 +271,10 @@ function New-DataverseConnectionInteractive {
         $orgInfo.OrgName
     )
 
-    # Store refresh token for potential token refresh
+    # Store auth context (non-sensitive only)
     $connection.TenantId = $TenantId
     $connection.ClientId = $script:DefaultClientId
-    $connection.RefreshToken = $tokenResult.RefreshToken
+    $connection.AuthMethod = "DeviceCode"
 
     return $connection
 }

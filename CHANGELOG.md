@@ -29,13 +29,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Path resolution in `Deploy-DataversePlugins` now correctly handles paths starting with `./`
   - `./path` resolves relative to current working directory
-  - `../path` resolves relative to registrations.json location
+  - Other relative paths (including `../`) resolve relative to registrations.json location
   - Absolute paths used as-is
 - Plugin package registration now correctly parses name/version from nupkg filename (requires X.Y.Z format)
 - Skip adding Plugin Assembly to solution for NuGet packages (package contains the assembly)
 - Assembly registration now returns fallback object if post-registration query fails (fixes "skipping step registration" issue)
 - Image update now only sends updatable fields (`entityalias`, `attributes`) - `imagetype`, `name`, `messagepropertyname` are read-only after creation
-- Image update errors now caught and logged as warnings instead of crashing deployment
+- Image update/create errors now caught and logged as warnings instead of crashing deployment
+- Connection string parsing now case-insensitive for key names (`Url`, `url`, `URL` all work)
+
+### Security
+
+- **Removed storage of `ClientSecret` and `RefreshToken` in `DataverseConnection` object**
+  - Long-lived credentials are no longer stored after authentication
+  - Only the time-limited access token (~60 min) is retained
+  - Prevents accidental credential exposure via logging, serialization, or memory inspection
+  - Added `ToString()` override to prevent accidental credential logging
+  - If token refresh is needed in the future, credentials should be re-prompted or use SecretManagement module
 
 ### Removed
 

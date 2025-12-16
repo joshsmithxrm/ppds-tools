@@ -285,7 +285,6 @@ function Deploy-PluginAssembly {
             Write-LogDebug "Package filename: $filename"
             Write-LogDebug "Parsed name: $parsedName"
             Write-LogDebug "Parsed version: $parsedVersion"
-            Write-LogDebug "Unique name: $packageUniqueName"
 
             # Use parsed name for both name and uniquename to ensure prefix consistency
             $body = @{

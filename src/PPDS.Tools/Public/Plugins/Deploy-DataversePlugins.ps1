@@ -120,9 +120,8 @@ function Deploy-DataversePlugins {
 
             # Resolve path based on prefix:
             # - "./" or ".\" = relative to current working directory
-            # - "../" or "..\" = relative to registrations.json location
             # - absolute path = use as-is
-            # - other relative = relative to registrations.json location
+            # - other relative paths (including "../") = relative to registrations.json location
             if ($rawPath -match '^\.[\\/]') {
                 # Starts with "./" - relative to CWD, strip the "./"
                 $deployPath = Join-Path (Get-Location) ($rawPath -replace '^\.[\\/]', '')
@@ -340,11 +339,16 @@ function Deploy-DataversePlugins {
                     } else {
                         if (-not $isWhatIf) {
                             Write-Log "      Creating new image..."
-                            $newImage = New-StepImage -ApiUrl $apiUrl -AuthHeaders $authHeaders -ImageData $imageData
-                            $totalImagesCreated++
-                            Write-LogSuccess "      Image created"
-                            # Note: Step images are subcomponents - they're automatically included
-                            # with their parent step, so we don't add them to the solution separately
+                            try {
+                                $newImage = New-StepImage -ApiUrl $apiUrl -AuthHeaders $authHeaders -ImageData $imageData
+                                $totalImagesCreated++
+                                Write-LogSuccess "      Image created"
+                                # Note: Step images are subcomponents - they're automatically included
+                                # with their parent step, so we don't add them to the solution separately
+                            }
+                            catch {
+                                Write-LogWarning "      Failed to create image: $($_.Exception.Message)"
+                            }
                         } else {
                             Write-Log "      [WhatIf] Would create image"
                             $totalImagesCreated++

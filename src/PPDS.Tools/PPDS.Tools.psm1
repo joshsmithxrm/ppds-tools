@@ -14,11 +14,15 @@ class DataverseConnection {
     [hashtable]$ConnectedOrgPublishedEndpoints
     [bool]$IsReady
 
-    # Auth context for token refresh
+    # Auth context (non-sensitive, for diagnostics only)
     hidden [string]$TenantId
     hidden [string]$ClientId
-    hidden [string]$ClientSecret
-    hidden [string]$RefreshToken
+    hidden [string]$AuthMethod  # "ServicePrincipal" or "DeviceCode"
+
+    # Note: ClientSecret and RefreshToken are intentionally NOT stored.
+    # Storing long-lived credentials poses security risks. If token refresh
+    # is needed in the future, credentials should be re-prompted or use
+    # the SecretManagement module.
 
     DataverseConnection([string]$environmentUrl, [string]$accessToken, [datetime]$expiry, [string]$orgName) {
         $this.EnvironmentUrl = $environmentUrl.TrimEnd("/")
@@ -32,7 +36,13 @@ class DataverseConnection {
     }
 
     [bool] IsTokenExpired() {
+        # Note: This method exists for future use. Currently, long-running
+        # operations that exceed token lifetime (~60 min) require reconnection.
         return [datetime]::UtcNow -ge $this.TokenExpiry.AddMinutes(-5)
+    }
+
+    [string] ToString() {
+        return "DataverseConnection: $($this.ConnectedOrgFriendlyName) @ $($this.EnvironmentUrl)"
     }
 }
 
