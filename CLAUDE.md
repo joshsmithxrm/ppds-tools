@@ -2,17 +2,37 @@
 
 **PowerShell module for Dataverse plugin deployment and automation.**
 
----
-
-## Project Overview
-
-This repository contains the PPDS.Tools PowerShell module, providing cmdlets for plugin extraction, deployment, and drift detection.
-
-**Part of the PPDS Ecosystem** - See `C:\VS\ppds\CLAUDE.md` for cross-project context.
+**Part of the PPDS Ecosystem** - See `../CLAUDE.md` for cross-project context.
 
 ---
 
-## Tech Stack
+## 🚫 NEVER
+
+| Rule | Why |
+|------|-----|
+| Use `powershell.exe` to invoke scripts | Use `pwsh` - module requires PowerShell 7+ |
+| Skip `[CmdletBinding()]` on public functions | Breaks common parameters (-Verbose, -Debug, etc.) |
+| Use `Write-Host` for output | Breaks pipeline; use `Write-Output` or return objects |
+| Hardcode environment URLs | Breaks portability; always accept as parameter |
+| Skip Pester tests for new cmdlets | All public cmdlets must have tests |
+| Use non-approved verbs | PowerShell standards require approved verbs |
+
+---
+
+## ✅ ALWAYS
+
+| Rule | Why |
+|------|-----|
+| Cmdlet naming: `Verb-Dataverse<Noun>` | Consistent naming across module |
+| `[CmdletBinding()]` on all public functions | Enables common parameters |
+| `[Parameter(Mandatory)]` for required params | Clear contract, better errors |
+| Return objects, not formatted strings | Pipeline compatibility |
+| Mock Dataverse calls in tests | Unit tests shouldn't require live environment |
+| Update `FunctionsToExport` in `.psd1` | New cmdlets must be exported |
+
+---
+
+## 💻 Tech Stack
 
 | Technology | Version | Purpose |
 |------------|---------|---------|
@@ -22,7 +42,7 @@ This repository contains the PPDS.Tools PowerShell module, providing cmdlets for
 
 ---
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 ppds-tools/
@@ -51,7 +71,7 @@ ppds-tools/
 
 ---
 
-## Common Commands
+## 🛠️ Common Commands
 
 ```powershell
 # Import module for development
@@ -70,7 +90,7 @@ Get-Command -Module PPDS.Tools
 
 ---
 
-## Cmdlet Naming Convention
+## 📛 Cmdlet Naming Convention
 
 All cmdlets follow the pattern: `Verb-Dataverse<Noun>`
 
@@ -84,7 +104,7 @@ All cmdlets follow the pattern: `Verb-Dataverse<Noun>`
 
 ---
 
-## Development Workflow
+## 🔄 Development Workflow
 
 ### Adding a New Cmdlet
 
@@ -96,7 +116,7 @@ All cmdlets follow the pattern: `Verb-Dataverse<Noun>`
 ### Module Structure Pattern
 
 ```powershell
-# Public function template
+# ✅ Correct - Full CmdletBinding with proper parameters
 function Verb-DataverseNoun {
     [CmdletBinding()]
     param(
@@ -107,13 +127,32 @@ function Verb-DataverseNoun {
         [switch]$OptionalSwitch
     )
 
+    Write-Verbose "Starting Verb-DataverseNoun"
+    # Implementation
+}
+
+# ❌ Wrong - Missing CmdletBinding, poor parameter definition
+function Verb-DataverseNoun($RequiredParam, $OptionalSwitch) {
     # Implementation
 }
 ```
 
 ---
 
-## Branching Strategy
+## 📦 Version Management
+
+Version is in `src/PPDS.Tools/PPDS.Tools.psd1`:
+
+```powershell
+@{
+    ModuleVersion = '1.0.0'
+    # ...
+}
+```
+
+---
+
+## 🔀 Git Branch & Merge Strategy
 
 | Branch | Purpose |
 |--------|---------|
@@ -125,7 +164,7 @@ function Verb-DataverseNoun {
 
 ---
 
-## Release Process
+## 🚀 Release Process
 
 1. Update version in `PPDS.Tools.psd1` (`ModuleVersion`)
 2. Update `CHANGELOG.md`
@@ -137,22 +176,12 @@ function Verb-DataverseNoun {
 
 ---
 
-## Version Management
-
-Version is in `src/PPDS.Tools/PPDS.Tools.psd1`:
-```powershell
-@{
-    ModuleVersion = '1.0.0'
-    # ...
-}
-```
-
----
-
-## Testing Patterns
+## 🧪 Testing Patterns
 
 ### Pester Test Structure
+
 ```powershell
+# ✅ Correct - Proper Pester 5 structure with mocking
 Describe 'Get-DataversePluginRegistrations' {
     BeforeAll {
         Import-Module $PSScriptRoot/../src/PPDS.Tools -Force
@@ -171,9 +200,16 @@ Describe 'Get-DataversePluginRegistrations' {
 }
 ```
 
+### Testing Requirements
+
+- **Target 80% code coverage**
+- Unit tests for all public cmdlets
+- Mock Dataverse calls in tests (no live environment required)
+- Run `Invoke-Pester ./tests -Output Detailed` before submitting PR
+
 ---
 
-## Ecosystem Integration
+## 🔗 Ecosystem Integration
 
 **Depends on:**
 - Assemblies using `PPDS.Plugins` attributes (from ppds-sdk)
@@ -184,7 +220,7 @@ Describe 'Get-DataversePluginRegistrations' {
 
 ---
 
-## Key Files
+## 📋 Key Files
 
 | File | Purpose |
 |------|---------|
@@ -195,16 +231,7 @@ Describe 'Get-DataversePluginRegistrations' {
 
 ---
 
-## Testing Requirements
-
-- **Target 80% code coverage.** Pester tests must pass before PR.
-- Unit tests for all public cmdlets
-- Mock Dataverse calls in tests (no live environment required for unit tests)
-- Run `Invoke-Pester ./tests -Output Detailed` before submitting PR
-
----
-
-## Decision Presentation
+## ⚖️ Decision Presentation
 
 When presenting choices or asking questions:
 1. **Lead with your recommendation** and rationale
