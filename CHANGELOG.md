@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2025-12-16
+
 ### Added
 
 - PSScriptAnalyzer linting in CI pipeline (errors + warnings fail build)
@@ -20,7 +22,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Breaking**: Replaced `Microsoft.Xrm.Data.PowerShell` dependency with native OAuth2 authentication
-  - Module now works on both PowerShell 5.1 and PowerShell 7+
   - No external module dependencies for Dataverse connectivity
 - `Connect-DataverseEnvironment` now returns a `DataverseConnection` object instead of `CrmServiceClient`
   - Same properties available: `CurrentAccessToken`, `ConnectedOrgFriendlyName`, `ConnectedOrgPublishedEndpoints`
@@ -59,7 +60,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - Dependency on `Microsoft.Xrm.Data.PowerShell` module
-- PowerShell 7.0 minimum requirement (now supports 5.1+)
 - Unused component types from `$script:ComponentType` (PluginType, SdkMessageProcessingStepImage - only PluginAssembly and SdkMessageProcessingStep remain)
 
 ## [1.0.0] - 2025-12-13
@@ -92,5 +92,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Requires PowerShell 7.0+
 - Requires Microsoft.Xrm.Data.PowerShell module for Dataverse connectivity
 
-[Unreleased]: https://github.com/joshsmithxrm/ppds-tools/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/joshsmithxrm/ppds-tools/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/joshsmithxrm/ppds-tools/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/joshsmithxrm/ppds-tools/releases/tag/v1.0.0

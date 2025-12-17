@@ -1,7 +1,7 @@
 @{
     # Module identification
     RootModule = 'PPDS.Tools.psm1'
-    ModuleVersion = '1.0.0'
+    ModuleVersion = '1.1.0'
     GUID = '8e4ee43b-7f82-482e-aad9-423721381dad'
 
     # Author information
@@ -44,7 +44,7 @@
             )
             LicenseUri = 'https://github.com/joshsmithxrm/ppds-tools/blob/main/LICENSE'
             ProjectUri = 'https://github.com/joshsmithxrm/ppds-tools'
-            ReleaseNotes = 'Initial release with plugin deployment commands.'
+            ReleaseNotes = 'Native OAuth2 authentication, device code flow, removed Microsoft.Xrm.Data.PowerShell dependency.'
         }
     }
 }
