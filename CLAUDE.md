@@ -209,14 +209,42 @@ Describe 'Get-DataversePluginRegistrations' {
 
 ---
 
-## 🔗 Ecosystem Integration
+## 🔗 Dependencies & Versioning
 
-**Depends on:**
-- Assemblies using `PPDS.Plugins` attributes (from ppds-sdk)
+### This Repo Produces
 
-**Used by:**
-- **ppds-alm** - CI/CD templates call these cmdlets
-- **ppds-demo** - Example scripts use this module
+| Package | Distribution |
+|---------|--------------|
+| PPDS.Tools | PowerShell Gallery |
+
+### Dependencies
+
+| Dependency | Type | Minimum | Purpose |
+|------------|------|---------|---------|
+| PPDS.Plugins | Reflection | 1.0.0 | Read `PluginStepAttribute`, `PluginImageAttribute` |
+| PPDS.Migration.Cli | Process | 1.0.0 | Migration cmdlets shell to CLI |
+
+### Consumed By
+
+| Consumer | How | Breaking Change Impact |
+|----------|-----|------------------------|
+| ppds-alm | Workflows call cmdlets | Must update workflow scripts |
+| ppds-demo | Scripts import module | Must update scripts |
+
+### Version Sync Rules
+
+| Rule | Details |
+|------|---------|
+| Major versions | Sync with ppds-alm when cmdlet signatures change |
+| Minor/patch | Independent |
+| Pre-release format | `Prerelease = 'alpha.N'` in `.psd1` manifest |
+
+### Breaking Changes Requiring Coordination
+
+- Changing exported cmdlet names
+- Removing or renaming mandatory parameters
+- Changing output object structure
+- Changing `Connect-DataverseEnvironment` auth flow
 
 ---
 

@@ -36,9 +36,25 @@ Describe "PPDS.Tools Module" -Tag 'Unit' {
             Get-Command -Module PPDS.Tools -Name Remove-DataverseOrphanedSteps | Should -Not -BeNullOrEmpty
         }
 
-        It "Should export exactly 5 public functions" {
+        It "Should export Export-DataverseData" {
+            Get-Command -Module PPDS.Tools -Name Export-DataverseData | Should -Not -BeNullOrEmpty
+        }
+
+        It "Should export Import-DataverseData" {
+            Get-Command -Module PPDS.Tools -Name Import-DataverseData | Should -Not -BeNullOrEmpty
+        }
+
+        It "Should export Get-DataverseDependencyGraph" {
+            Get-Command -Module PPDS.Tools -Name Get-DataverseDependencyGraph | Should -Not -BeNullOrEmpty
+        }
+
+        It "Should export Invoke-DataverseMigration" {
+            Get-Command -Module PPDS.Tools -Name Invoke-DataverseMigration | Should -Not -BeNullOrEmpty
+        }
+
+        It "Should export exactly 9 public functions" {
             $commands = Get-Command -Module PPDS.Tools
-            $commands.Count | Should -Be 5
+            $commands.Count | Should -Be 9
         }
     }
 

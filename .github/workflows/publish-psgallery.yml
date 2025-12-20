@@ -17,7 +17,9 @@ jobs:
         shell: pwsh
         run: |
           $manifest = Test-ModuleManifest -Path './src/PPDS.Tools/PPDS.Tools.psd1'
-          Write-Host "Publishing module: $($manifest.Name) v$($manifest.Version)"
+          $pre = $manifest.PrivateData.PSData.Prerelease
+          $fullVersion = if ($pre) { "$($manifest.Version)-$pre" } else { $manifest.Version }
+          Write-Host "Publishing module: $($manifest.Name) v$fullVersion"
 
       - name: Publish to PowerShell Gallery
         shell: pwsh
