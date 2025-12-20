@@ -21,8 +21,6 @@ Install-Module PPDS.Tools -Scope CurrentUser
 | 1.1.x | PowerShell 7.0+ |
 | 1.2.x | PowerShell 7.0+, [PPDS.Migration.Cli](https://github.com/joshsmithxrm/ppds-sdk) >= 1.0.0 (for migration cmdlets) |
 
-Used by [ppds-alm](https://github.com/joshsmithxrm/ppds-alm) v1.0.0+ workflows.
-
 ---
 
 ## Cmdlets
