@@ -106,7 +106,7 @@ function Get-DataverseDependencyGraph {
                     [PSCustomObject]@{
                         Tier       = $_.tier
                         Entities   = $_.entities
-                        HasCircular = if ($_.hasCircular) { $_.hasCircular } else { $false }
+                        HasCircular = [bool]$_.hasCircular
                     }
                 }
             )

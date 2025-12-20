@@ -36,9 +36,10 @@ function Get-PpdsMigrateCli {
         return $inPath.Source
     }
 
-    # Check global .NET tools
-    $globalToolsPath = Join-Path $env:USERPROFILE '.dotnet\tools'
-    $globalCliPath = Join-Path $globalToolsPath 'ppds-migrate.exe'
+    # Check global .NET tools (cross-platform)
+    $globalToolsPath = Join-Path ([System.Environment]::GetFolderPath('UserProfile')) '.dotnet' 'tools'
+    $cliExeName = if ($IsWindows) { 'ppds-migrate.exe' } else { 'ppds-migrate' }
+    $globalCliPath = Join-Path $globalToolsPath $cliExeName
     if (Test-Path $globalCliPath) {
         Write-Verbose "Found ppds-migrate in global tools: $globalCliPath"
         return $globalCliPath
