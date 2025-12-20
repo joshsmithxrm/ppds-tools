@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0-alpha.1] - 2025-12-19
+
+### Added
+
+- Data migration cmdlets (wrap `ppds-migrate` CLI from ppds-sdk):
+  - `Export-DataverseData` - Export data from Dataverse to ZIP file
+  - `Import-DataverseData` - Import data from ZIP file into Dataverse
+  - `Get-DataverseDependencyGraph` - Analyze schema and display dependency graph
+  - `Invoke-DataverseMigration` - Full environment-to-environment migration
+- `Get-PpdsMigrateCli` helper function to locate or install the CLI tool
+- Architecture decision record: [ADR-0001: CLI Wrapper Pattern](docs/adr/0001_CLI_WRAPPER_PATTERN.md)
+
+### Changed
+
+- Updated README with migration cmdlet documentation
+- Added `migration` tag for PowerShell Gallery discoverability
+
+### Notes
+
+- Migration cmdlets require the `ppds-migrate` CLI tool from [ppds-sdk](https://github.com/joshsmithxrm/ppds-sdk)
+- CLI tool is not yet published; migration cmdlets are placeholders pending SDK release
+
 ## [1.1.0] - 2025-12-16
 
 ### Added
@@ -92,6 +114,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Requires PowerShell 7.0+
 - Requires Microsoft.Xrm.Data.PowerShell module for Dataverse connectivity
 
-[Unreleased]: https://github.com/joshsmithxrm/ppds-tools/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/joshsmithxrm/ppds-tools/compare/v1.2.0-alpha.1...HEAD
+[1.2.0-alpha.1]: https://github.com/joshsmithxrm/ppds-tools/compare/v1.1.0...v1.2.0-alpha.1
 [1.1.0]: https://github.com/joshsmithxrm/ppds-tools/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/joshsmithxrm/ppds-tools/releases/tag/v1.0.0
