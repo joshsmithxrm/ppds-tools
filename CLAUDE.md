@@ -237,7 +237,7 @@ Describe 'Get-DataversePluginRegistrations' {
 |------|---------|
 | Major versions | Sync with ppds-alm when cmdlet signatures change |
 | Minor/patch | Independent |
-| Pre-release format | `Prerelease = 'alphaN'` in `.psd1` manifest (no dots allowed) |
+| Pre-release format | `Prerelease = 'alphaN'` in `.psd1` manifest |
 
 ### Breaking Changes Requiring Coordination
 
