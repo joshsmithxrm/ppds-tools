@@ -38,7 +38,7 @@
     # Private data for PowerShell Gallery
     PrivateData = @{
         PSData = @{
-            Prerelease = 'alpha.1'
+            Prerelease = 'alpha1'
             Tags = @(
                 'dataverse',
                 'dynamics365',
