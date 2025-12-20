@@ -21,8 +21,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Updated README with migration cmdlet documentation
+- Updated README with migration cmdlet documentation and Security section
 - Added `migration` tag for PowerShell Gallery discoverability
+
+### Security
+
+- Verbose output automatically redacts sensitive credential values (`***REDACTED***`)
+- Redacts 12 sensitive keys matching PPDS.Dataverse SDK pattern for consistency
 
 ### Notes
 
