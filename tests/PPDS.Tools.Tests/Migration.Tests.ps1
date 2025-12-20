@@ -375,14 +375,12 @@ Describe "Invoke-DataverseMigration" -Tag 'Unit' {
         It "Should initialize result object with correct properties" {
             InModuleScope PPDS.Tools {
                 $migrationResult = [PSCustomObject]@{
-                    ExportRecords   = 0
-                    ImportRecords   = 0
-                    RecordsFailed   = 0
-                    Duration        = [TimeSpan]::Zero
+                    RecordsProcessed = 0
+                    RecordsFailed    = 0
+                    Duration         = [TimeSpan]::Zero
                 }
 
-                $migrationResult.PSObject.Properties.Name | Should -Contain 'ExportRecords'
-                $migrationResult.PSObject.Properties.Name | Should -Contain 'ImportRecords'
+                $migrationResult.PSObject.Properties.Name | Should -Contain 'RecordsProcessed'
                 $migrationResult.PSObject.Properties.Name | Should -Contain 'RecordsFailed'
                 $migrationResult.PSObject.Properties.Name | Should -Contain 'Duration'
                 $migrationResult.Duration | Should -Be ([TimeSpan]::Zero)

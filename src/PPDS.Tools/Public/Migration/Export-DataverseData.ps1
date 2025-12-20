@@ -121,7 +121,7 @@ function Export-DataverseData {
         $line = $_
 
         # Check if it's a JSON progress line
-        if ($line -match '^\{') {
+        if ($line -match '^\s*\{') {
             try {
                 $progress = $line | ConvertFrom-Json
 

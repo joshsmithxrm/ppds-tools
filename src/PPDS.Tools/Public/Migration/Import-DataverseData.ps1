@@ -134,8 +134,6 @@ function Import-DataverseData {
     # Execute CLI and parse progress
     $importResult = [PSCustomObject]@{
         RecordsProcessed = 0
-        RecordsCreated   = 0
-        RecordsUpdated   = 0
         RecordsFailed    = 0
         Duration         = [TimeSpan]::Zero
     }
@@ -146,7 +144,7 @@ function Import-DataverseData {
         $line = $_
 
         # Check if it's a JSON progress line
-        if ($line -match '^\{') {
+        if ($line -match '^\s*\{') {
             try {
                 $progress = $line | ConvertFrom-Json
 

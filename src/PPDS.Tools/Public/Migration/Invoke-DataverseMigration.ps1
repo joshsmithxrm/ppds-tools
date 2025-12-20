@@ -105,10 +105,9 @@ function Invoke-DataverseMigration {
 
     # Execute CLI and parse progress
     $migrationResult = [PSCustomObject]@{
-        ExportRecords   = 0
-        ImportRecords   = 0
-        RecordsFailed   = 0
-        Duration        = [TimeSpan]::Zero
+        RecordsProcessed = 0
+        RecordsFailed    = 0
+        Duration         = [TimeSpan]::Zero
     }
     $errorOutput = @()
     $currentPhase = 'starting'
@@ -117,7 +116,7 @@ function Invoke-DataverseMigration {
         $line = $_
 
         # Check if it's a JSON progress line
-        if ($line -match '^\{') {
+        if ($line -match '^\s*\{') {
             try {
                 $progress = $line | ConvertFrom-Json
 
@@ -180,7 +179,7 @@ function Invoke-DataverseMigration {
                     'complete' {
                         Write-Progress -Activity "Migration complete" -Completed -Id 1
                         Write-Progress -Activity "Migration complete" -Completed -Id 2
-                        $migrationResult.ImportRecords = $progress.recordsProcessed
+                        $migrationResult.RecordsProcessed = $progress.recordsProcessed
                         $migrationResult.RecordsFailed = $progress.errors
                         if ($progress.duration) {
                             $migrationResult.Duration = [TimeSpan]::Parse($progress.duration)
