@@ -101,7 +101,14 @@ function Invoke-DataverseMigration {
         $cliArgs += '--bypass-plugins'
     }
 
-    Write-Verbose "Executing: $cliPath $($cliArgs -join ' ')"
+    # Build redacted args for logging (protect credentials)
+    $redactedArgs = $cliArgs.Clone()
+    for ($i = 0; $i -lt $redactedArgs.Count; $i++) {
+        if ($redactedArgs[$i] -in @('--source-connection', '--target-connection') -and ($i + 1) -lt $redactedArgs.Count) {
+            $redactedArgs[$i + 1] = Get-RedactedConnectionString $redactedArgs[$i + 1]
+        }
+    }
+    Write-Verbose "Executing: $cliPath $($redactedArgs -join ' ')"
 
     # Execute CLI and parse progress
     $migrationResult = [PSCustomObject]@{

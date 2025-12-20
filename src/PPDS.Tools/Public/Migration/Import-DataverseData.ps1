@@ -129,7 +129,14 @@ function Import-DataverseData {
         $cliArgs += $Mode
     }
 
-    Write-Verbose "Executing: $cliPath $($cliArgs -join ' ')"
+    # Build redacted args for logging (protect credentials)
+    $redactedArgs = $cliArgs.Clone()
+    for ($i = 0; $i -lt $redactedArgs.Count; $i++) {
+        if ($redactedArgs[$i] -eq '--connection' -and ($i + 1) -lt $redactedArgs.Count) {
+            $redactedArgs[$i + 1] = Get-RedactedConnectionString $redactedArgs[$i + 1]
+        }
+    }
+    Write-Verbose "Executing: $cliPath $($redactedArgs -join ' ')"
 
     # Execute CLI and parse progress
     $importResult = [PSCustomObject]@{

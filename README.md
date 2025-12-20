@@ -106,6 +106,69 @@ Invoke-DataverseMigration `
 
 ---
 
+## Security
+
+### Connection String Handling
+
+Connection strings contain sensitive credentials. This module provides built-in protection:
+
+**Automatic Redaction:** Verbose output automatically redacts sensitive values:
+
+```powershell
+Export-DataverseData -Connection $conn -SchemaPath ./schema.xml -OutputPath ./data.zip -Verbose
+# VERBOSE: Executing: ppds-migrate export --connection "AuthType=ClientSecret;Url=https://org.crm.dynamics.com;ClientId=xxx;ClientSecret=***REDACTED***"
+```
+
+Sensitive keys redacted: `ClientSecret`, `Password`, `Secret`, `Key`, `Pwd`, `Token`, `ApiKey`, `AccessToken`, `RefreshToken`, `SharedAccessKey`, `AccountKey`, `Credential`
+
+### Best Practices
+
+1. **Use Environment Variables** (recommended):
+
+   ```powershell
+   # Set once per session - cmdlets use these automatically
+   $env:PPDS_CONNECTION = "AuthType=ClientSecret;Url=https://org.crm.dynamics.com;ClientId=xxx;ClientSecret=xxx"
+   $env:PPDS_SOURCE_CONNECTION = "..."  # For Invoke-DataverseMigration
+   $env:PPDS_TARGET_CONNECTION = "..."  # For Invoke-DataverseMigration
+
+   # No -Connection parameter needed
+   Export-DataverseData -SchemaPath ./schema.xml -OutputPath ./data.zip
+   ```
+
+2. **Use SecretManagement module** for stored credentials:
+
+   ```powershell
+   Install-Module Microsoft.PowerShell.SecretManagement
+   Install-Module Microsoft.PowerShell.SecretStore
+
+   # Store securely
+   Set-Secret -Name "DataverseConnection" -Secret "AuthType=ClientSecret;..."
+
+   # Retrieve at runtime
+   $env:PPDS_CONNECTION = Get-Secret -Name "DataverseConnection" -AsPlainText
+   ```
+
+3. **CI/CD Pipelines** - Use pipeline secrets:
+
+   ```yaml
+   # GitHub Actions
+   - run: Export-DataverseData -SchemaPath ./schema.xml -OutputPath ./data.zip
+     env:
+       PPDS_CONNECTION: ${{ secrets.DATAVERSE_CONNECTION }}
+   ```
+
+4. **Never hardcode credentials** in scripts.
+
+### PowerShell-Specific Considerations
+
+| Concern | Mitigation |
+|---------|------------|
+| **Command History** | Use env vars; inline credentials are saved to PSReadLine history |
+| **Transcripts** | Verbose output is redacted; avoid `Start-Transcript` with inline credentials |
+| **Process Visibility** | Env vars are safer than command-line arguments |
+
+---
+
 ## Architecture Decisions
 
 - [ADR-0001: CLI Wrapper Pattern](docs/adr/0001_CLI_WRAPPER_PATTERN.md) - Why migration cmdlets wrap the CLI
