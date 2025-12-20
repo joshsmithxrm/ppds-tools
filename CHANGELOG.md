@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.2.0-alpha.1] - 2025-12-19
+## [1.2.0-alpha1] - 2025-12-19
 
 ### Added
 
@@ -119,7 +119,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Requires PowerShell 7.0+
 - Requires Microsoft.Xrm.Data.PowerShell module for Dataverse connectivity
 
-[Unreleased]: https://github.com/joshsmithxrm/ppds-tools/compare/v1.2.0-alpha.1...HEAD
-[1.2.0-alpha.1]: https://github.com/joshsmithxrm/ppds-tools/compare/v1.1.0...v1.2.0-alpha.1
+[Unreleased]: https://github.com/joshsmithxrm/ppds-tools/compare/v1.2.0-alpha1...HEAD
+[1.2.0-alpha1]: https://github.com/joshsmithxrm/ppds-tools/compare/v1.1.0...v1.2.0-alpha1
 [1.1.0]: https://github.com/joshsmithxrm/ppds-tools/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/joshsmithxrm/ppds-tools/releases/tag/v1.0.0
