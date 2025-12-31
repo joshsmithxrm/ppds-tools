@@ -66,7 +66,7 @@ Connect-DataverseEnvironment `
 
 ```powershell
 # Extract registrations from compiled assembly
-Get-DataversePluginRegistrations -InputPath "./bin/Release/net462/MyPlugins.dll"
+Get-DataversePluginRegistrations -InputPath "./bin/Release/net462/MyPlugins.dll" -OutputPath "./registrations.json"
 
 # Deploy to Dataverse (uses active profile)
 Deploy-DataversePlugins -ConfigPath "./registrations.json"

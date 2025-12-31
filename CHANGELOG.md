@@ -19,7 +19,7 @@ This is a major refactor. All cmdlets now wrap the `ppds` CLI tool instead of us
 
 #### Migration Guide
 
-| v1.x Pattern | v2.x Pattern |
+| v1.x Pattern | v1.2.x Pattern |
 |--------------|--------------|
 | `$conn = Connect-DataverseEnvironment -Interactive` | `Connect-DataverseEnvironment -DeviceCode -Name "dev"` |
 | `Deploy-DataversePlugins -Connection $conn ...` | `Deploy-DataversePlugins -Profile "dev" ...` or just `Deploy-DataversePlugins ...` (uses active profile) |

@@ -341,6 +341,3 @@ function Copy-DataverseData {
         return $copyResult
     }
 }
-
-# Alias for backwards compatibility during transition
-Set-Alias -Name Invoke-DataverseMigration -Value Copy-DataverseData -Scope Global

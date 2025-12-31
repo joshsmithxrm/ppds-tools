@@ -28,5 +28,6 @@ $publicFunctions = Get-ChildItem -Path $publicPath -Filter '*.ps1' -Recurse |
 
 Export-ModuleMember -Function $publicFunctions
 
-# Export aliases
-Export-ModuleMember -Alias @('Invoke-DataverseMigration')
+# Create and export aliases (manifest AliasesToExport controls what's visible)
+New-Alias -Name Invoke-DataverseMigration -Value Copy-DataverseData -Force
+Export-ModuleMember -Alias Invoke-DataverseMigration

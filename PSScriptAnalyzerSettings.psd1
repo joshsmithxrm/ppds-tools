@@ -28,7 +28,12 @@
 
         # Event handler parameters ($sender, $args) are required by .NET delegate signature
         # even if not all are used in the implementation
-        'PSReviewUnusedParameter'
+        'PSReviewUnusedParameter',
+
+        # Connect-DataverseEnvironment accepts Username/Password for legacy auth scenarios
+        # This is a CLI wrapper - credentials are passed to CLI which handles them securely
+        # PSCredential would add unnecessary complexity since we'd extract plain text anyway
+        'PSAvoidUsingUsernameAndPasswordParams'
     )
 
     Rules = @{
