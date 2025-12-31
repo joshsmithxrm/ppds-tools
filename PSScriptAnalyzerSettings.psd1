@@ -28,7 +28,21 @@
 
         # Event handler parameters ($sender, $args) are required by .NET delegate signature
         # even if not all are used in the implementation
-        'PSReviewUnusedParameter'
+        'PSReviewUnusedParameter',
+
+        # Connect-DataverseEnvironment accepts Username/Password for legacy auth scenarios
+        # This is a CLI wrapper - credentials are passed to CLI which handles them securely
+        # PSCredential would add unnecessary complexity since we'd extract plain text anyway
+        'PSAvoidUsingUsernameAndPasswordParams',
+
+        # Same rationale for Password/CertificatePassword string parameters
+        # CLI requires plain text, SecureString would just add extraction overhead
+        'PSAvoidUsingPlainTextForPassword',
+
+        # -Profile parameter intentionally shadows $Profile automatic variable
+        # Matches PAC CLI and ppds CLI naming for familiarity across tools
+        # These functions don't use the $Profile automatic variable internally
+        'PSAvoidAssignmentToAutomaticVariable'
     )
 
     Rules = @{

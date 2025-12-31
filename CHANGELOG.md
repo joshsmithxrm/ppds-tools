@@ -7,6 +7,83 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0-alpha2] - 2025-12-XX
+
+### Breaking Changes
+
+This is a major refactor. All cmdlets now wrap the `ppds` CLI tool instead of using native PowerShell implementation.
+
+- **Removed `DataverseConnection` class** - Authentication now uses CLI profiles
+- **Removed `-Connection` parameter** - Use `-Profile` and `-Environment` instead
+- **Requires `ppds` CLI tool** - Install with `dotnet tool install --global PPDS.Cli`
+
+#### Migration Guide
+
+| v1.x Pattern | v1.2.x Pattern |
+|--------------|--------------|
+| `$conn = Connect-DataverseEnvironment -Interactive` | `Connect-DataverseEnvironment -DeviceCode -Name "dev"` |
+| `Deploy-DataversePlugins -Connection $conn ...` | `Deploy-DataversePlugins -Profile "dev" ...` or just `Deploy-DataversePlugins ...` (uses active profile) |
+| `-RegistrationFile` parameter | `-ConfigPath` parameter (alias preserved) |
+| `Invoke-DataverseMigration` | `Copy-DataverseData` (alias preserved) |
+
+### Added
+
+- **New cmdlets:**
+  - `Get-DataverseProfile` - Get current active authentication profile
+  - `Get-DataverseProfiles` - List all authentication profiles
+  - `Get-DataversePlugins` - List registered plugins in environment (wraps `ppds plugins list`)
+  - `Copy-DataverseData` - Copy data between environments (wraps `ppds data copy`)
+
+- **New authentication methods via `Connect-DataverseEnvironment`:**
+  - Interactive browser (default)
+  - Device code flow (`-DeviceCode`)
+  - Client secret (`-ApplicationId`, `-ClientSecret`, `-TenantId`)
+  - Certificate file (`-CertificatePath`)
+  - Certificate store (`-CertificateThumbprint`)
+  - Managed identity (`-ManagedIdentity`)
+  - Username/password (`-Username`, `-Password`)
+  - GitHub federated (`-GitHubFederated`)
+  - Azure DevOps federated (`-AzureDevOpsFederated`)
+  - Cloud selection (`-Cloud`: Public, USGov, USGovHigh, USGovDoD, China)
+
+- **New parameters for migration cmdlets:**
+  - `Import-DataverseData`: `-BypassPlugins`, `-BypassFlows`, `-ContinueOnError`, `-Mode`, `-UserMappingPath`, `-StripOwnerFields`, `-SkipMissingColumns`
+  - `Export-DataverseData`: `-Parallel`, `-BatchSize`
+  - `Copy-DataverseData`: All source/target options with `SourceProfile`, `SourceEnvironment`, `TargetProfile`, `TargetEnvironment`
+
+- **Architecture decision records:**
+  - Updated [ADR-0001: CLI Wrapper Pattern](docs/adr/0001_CLI_WRAPPER_PATTERN.md) - Now covers all cmdlets
+  - New [ADR-0002: Profile-Based Authentication](docs/adr/0002_PROFILE_BASED_AUTH.md)
+
+### Changed
+
+- All cmdlets now wrap the unified `ppds` CLI tool
+- CLI helper renamed from `Get-PpdsMigrateCli` to `Get-PpdsCli`
+- `Invoke-DataverseMigration` renamed to `Copy-DataverseData` (alias preserved for compatibility)
+- Plugin cmdlets now use `-ConfigPath` parameter (with `-RegistrationFile` alias)
+- Module version bumped to 1.2.0-alpha2
+
+### Removed
+
+- `DataverseConnection` class
+- Native OAuth2 implementation (~300 lines)
+- Native Dataverse Web API implementation (~700 lines)
+- Native assembly reflection (~275 lines)
+- Private helper files:
+  - `DataverseAuth.ps1`
+  - `DataverseOperations.ps1`
+  - `DataverseQueries.ps1`
+  - `AssemblyReflection.ps1`
+  - `Invoke-DataverseApi.ps1`
+  - `Get-RedactedConnectionString.ps1`
+
+### Dependencies
+
+- **Requires**: `ppds` CLI tool (PPDS.Cli dotnet tool)
+- **Requires**: PowerShell 7.0+
+
+---
+
 ## [1.2.0-alpha1] - 2025-12-19
 
 ### Added
@@ -119,7 +196,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Requires PowerShell 7.0+
 - Requires Microsoft.Xrm.Data.PowerShell module for Dataverse connectivity
 
-[Unreleased]: https://github.com/joshsmithxrm/ppds-tools/compare/v1.2.0-alpha1...HEAD
+[Unreleased]: https://github.com/joshsmithxrm/ppds-tools/compare/v1.2.0-alpha2...HEAD
+[1.2.0-alpha2]: https://github.com/joshsmithxrm/ppds-tools/compare/v1.2.0-alpha1...v1.2.0-alpha2
 [1.2.0-alpha1]: https://github.com/joshsmithxrm/ppds-tools/compare/v1.1.0...v1.2.0-alpha1
 [1.1.0]: https://github.com/joshsmithxrm/ppds-tools/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/joshsmithxrm/ppds-tools/releases/tag/v1.0.0

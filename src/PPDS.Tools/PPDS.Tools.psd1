@@ -8,37 +8,42 @@
     Author = 'Josh Smith'
     CompanyName = 'Power Platform Developer Suite'
     Copyright = '(c) 2025 Josh Smith. MIT License.'
-    Description = 'PowerShell tools for Dataverse plugin deployment, data migration, drift detection, and CI/CD automation. Part of the Power Platform Developer Suite.'
+    Description = 'PowerShell tools for Dataverse plugin deployment, data migration, drift detection, and CI/CD automation. Wraps the ppds CLI tool. Part of the Power Platform Developer Suite.'
 
     # Requirements - PowerShell 7+ required
     PowerShellVersion = '7.0'
 
     # Exported members
     FunctionsToExport = @(
+        # Auth commands
+        'Connect-DataverseEnvironment',
+        'Get-DataverseProfile',
+        'Get-DataverseProfiles',
+
         # Plugin commands
         'Get-DataversePluginRegistrations',
         'Deploy-DataversePlugins',
         'Get-DataversePluginDrift',
         'Remove-DataverseOrphanedSteps',
+        'Get-DataversePlugins',
 
-        # Auth commands
-        'Connect-DataverseEnvironment',
-
-        # Migration commands
+        # Data migration commands
         'Export-DataverseData',
         'Import-DataverseData',
-        'Get-DataverseDependencyGraph',
-        'Invoke-DataverseMigration'
+        'Copy-DataverseData',
+        'Get-DataverseDependencyGraph'
     )
 
     CmdletsToExport = @()
     VariablesToExport = @()
-    AliasesToExport = @()
+    AliasesToExport = @(
+        'Invoke-DataverseMigration'  # Alias for Copy-DataverseData (backwards compat)
+    )
 
     # Private data for PowerShell Gallery
     PrivateData = @{
         PSData = @{
-            Prerelease = 'alpha1'
+            Prerelease = 'alpha2'
             Tags = @(
                 'dataverse',
                 'dynamics365',
@@ -52,7 +57,26 @@
             )
             LicenseUri = 'https://github.com/joshsmithxrm/ppds-tools/blob/main/LICENSE'
             ProjectUri = 'https://github.com/joshsmithxrm/ppds-tools'
-            ReleaseNotes = 'Data migration cmdlets (Export-DataverseData, Import-DataverseData, Get-DataverseDependencyGraph, Invoke-DataverseMigration). Requires ppds-migrate CLI tool.'
+            ReleaseNotes = @'
+## v1.2.0-alpha2 - CLI Wrapper Refactor
+
+BREAKING CHANGES:
+- All cmdlets now wrap the ppds CLI tool (requires PPDS.Cli dotnet tool)
+- Removed DataverseConnection class - use profile-based authentication
+- Authentication uses ppds auth profiles (Connect-DataverseEnvironment wraps 'ppds auth create')
+- All cmdlets use -Profile and -Environment parameters instead of -Connection
+
+New Cmdlets:
+- Get-DataverseProfile: Get active authentication profile
+- Get-DataverseProfiles: List all profiles
+- Get-DataversePlugins: List registered plugins in environment
+- Copy-DataverseData: Copy data between environments (replaces Invoke-DataverseMigration)
+
+Renamed Cmdlets:
+- Invoke-DataverseMigration -> Copy-DataverseData (alias preserved for compatibility)
+
+Install the CLI: dotnet tool install --global PPDS.Cli
+'@
         }
     }
 }

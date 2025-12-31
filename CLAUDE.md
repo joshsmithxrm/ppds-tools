@@ -1,10 +1,12 @@
 # CLAUDE.md - ppds-tools
 
-**PowerShell module for Dataverse plugin deployment and automation.**
+**PowerShell module for Dataverse plugin deployment, data migration, and CI/CD automation.**
 
 **Part of the PPDS Ecosystem** - See `../CLAUDE.md` for cross-project context.
 
 **Consumption guidance:** See [CONSUMPTION_PATTERNS.md](../docs/CONSUMPTION_PATTERNS.md) for when consumers should use library vs CLI vs Tools.
+
+**Architecture:** All cmdlets wrap the `ppds` CLI tool. See [ADR-0001: CLI Wrapper Pattern](docs/adr/0001_CLI_WRAPPER_PATTERN.md).
 
 ---
 
@@ -52,19 +54,32 @@ ppds-tools/
 │   └── PPDS.Tools/
 │       ├── PPDS.Tools.psd1       # Module manifest
 │       ├── PPDS.Tools.psm1       # Root module
-│       ├── Public/               # Exported cmdlets
+│       ├── Public/               # Exported cmdlets (12 total)
 │       │   ├── Auth/
-│       │   │   └── Connect-DataverseEnvironment.ps1
-│       │   └── Plugins/
-│       │       ├── Get-DataversePluginRegistrations.ps1
-│       │       ├── Deploy-DataversePlugins.ps1
-│       │       ├── Get-DataversePluginDrift.ps1
-│       │       └── Remove-DataverseOrphanedSteps.ps1
+│       │   │   ├── Connect-DataverseEnvironment.ps1
+│       │   │   ├── Get-DataverseProfile.ps1
+│       │   │   └── Get-DataverseProfiles.ps1
+│       │   ├── Plugins/
+│       │   │   ├── Get-DataversePluginRegistrations.ps1
+│       │   │   ├── Deploy-DataversePlugins.ps1
+│       │   │   ├── Get-DataversePluginDrift.ps1
+│       │   │   ├── Remove-DataverseOrphanedSteps.ps1
+│       │   │   └── Get-DataversePlugins.ps1
+│       │   └── Migration/
+│       │       ├── Export-DataverseData.ps1
+│       │       ├── Import-DataverseData.ps1
+│       │       ├── Copy-DataverseData.ps1
+│       │       └── Get-DataverseDependencyGraph.ps1
 │       ├── Private/              # Internal functions
+│       │   └── Get-PpdsCli.ps1   # CLI locator helper
 │       └── Schemas/
 │           └── plugin-registration.schema.json
 ├── tests/
 │   └── PPDS.Tools.Tests/
+├── docs/
+│   └── adr/                      # Architecture Decision Records
+│       ├── 0001_CLI_WRAPPER_PATTERN.md
+│       └── 0002_PROFILE_BASED_AUTH.md
 ├── .github/workflows/
 │   ├── test.yml                  # CI tests
 │   └── publish-psgallery.yml     # Release → PSGallery
@@ -96,13 +111,23 @@ Get-Command -Module PPDS.Tools
 
 All cmdlets follow the pattern: `Verb-Dataverse<Noun>`
 
-| Cmdlet | Purpose |
-|--------|---------|
-| `Connect-DataverseEnvironment` | Establish connection with credentials |
-| `Get-DataversePluginRegistrations` | Extract registrations from assembly |
-| `Deploy-DataversePlugins` | Deploy plugins to environment |
-| `Get-DataversePluginDrift` | Compare config vs environment |
-| `Remove-DataverseOrphanedSteps` | Clean up orphaned steps |
+| Cmdlet | CLI Command | Purpose |
+|--------|-------------|---------|
+| **Authentication** | | |
+| `Connect-DataverseEnvironment` | `ppds auth create` | Create authentication profile |
+| `Get-DataverseProfile` | `ppds auth who` | Get active profile |
+| `Get-DataverseProfiles` | `ppds auth list` | List all profiles |
+| **Plugin Deployment** | | |
+| `Get-DataversePluginRegistrations` | `ppds plugins extract` | Extract registrations from assembly |
+| `Deploy-DataversePlugins` | `ppds plugins deploy` | Deploy plugins to environment |
+| `Get-DataversePluginDrift` | `ppds plugins diff` | Compare config vs environment |
+| `Remove-DataverseOrphanedSteps` | `ppds plugins clean` | Clean up orphaned steps |
+| `Get-DataversePlugins` | `ppds plugins list` | List registered plugins |
+| **Data Migration** | | |
+| `Export-DataverseData` | `ppds data export` | Export data to ZIP file |
+| `Import-DataverseData` | `ppds data import` | Import data from ZIP file |
+| `Copy-DataverseData` | `ppds data copy` | Copy data between environments |
+| `Get-DataverseDependencyGraph` | `ppds data analyze` | Analyze schema dependencies |
 
 ---
 
@@ -187,17 +212,19 @@ Version is in `src/PPDS.Tools/PPDS.Tools.psd1`:
 Describe 'Get-DataversePluginRegistrations' {
     BeforeAll {
         Import-Module $PSScriptRoot/../src/PPDS.Tools -Force
+        Mock Get-PpdsCli { 'ppds' } -ModuleName PPDS.Tools
     }
 
-    It 'Should extract registrations from valid assembly' {
-        # Arrange
-        $assemblyPath = './tests/fixtures/TestPlugins.dll'
+    It 'Should require InputPath parameter' {
+        $cmd = Get-Command Get-DataversePluginRegistrations
+        $cmd.Parameters['InputPath'].Attributes |
+            Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] } |
+            ForEach-Object { $_.Mandatory } | Should -Contain $true
+    }
 
-        # Act
-        $result = Get-DataversePluginRegistrations -AssemblyPath $assemblyPath
-
-        # Assert
-        $result | Should -Not -BeNullOrEmpty
+    It 'Should throw when input file does not exist' {
+        { Get-DataversePluginRegistrations -InputPath "./nonexistent.dll" } |
+            Should -Throw "*Input file not found*"
     }
 }
 ```
@@ -206,7 +233,8 @@ Describe 'Get-DataversePluginRegistrations' {
 
 - **Target 80% code coverage**
 - Unit tests for all public cmdlets
-- Mock Dataverse calls in tests (no live environment required)
+- Mock `Get-PpdsCli` in tests (no CLI or live environment required)
+- Test parameter validation, CLI argument building, and JSON output parsing
 - Run `Invoke-Pester ./tests -Output Detailed` before submitting PR
 
 ---
@@ -223,8 +251,10 @@ Describe 'Get-DataversePluginRegistrations' {
 
 | Dependency | Type | Minimum | Purpose |
 |------------|------|---------|---------|
-| PPDS.Plugins | Reflection | 1.0.0 | Read `PluginStepAttribute`, `PluginImageAttribute` |
-| PPDS.Migration.Cli | Process | 1.0.0 | Migration cmdlets shell to CLI |
+| PPDS.Cli | dotnet tool | 1.0.0 | All cmdlets shell to unified CLI |
+| PowerShell | Runtime | 7.0 | Required runtime |
+
+**Note:** This module is a pure CLI wrapper. All functionality is delegated to the `ppds` CLI tool.
 
 ### Consumed By
 
@@ -246,7 +276,7 @@ Describe 'Get-DataversePluginRegistrations' {
 - Changing exported cmdlet names
 - Removing or renaming mandatory parameters
 - Changing output object structure
-- Changing `Connect-DataverseEnvironment` auth flow
+- Changing authentication flow (profile-based since v1.2.0)
 
 ---
 
@@ -258,6 +288,8 @@ Describe 'Get-DataversePluginRegistrations' {
 | `PPDS.Tools.psm1` | Root module (dot-sources Public/Private) |
 | `CHANGELOG.md` | Release notes |
 | `plugin-registration.schema.json` | JSON schema for registration files |
+| `docs/adr/0001_CLI_WRAPPER_PATTERN.md` | Architecture: why we wrap CLI |
+| `docs/adr/0002_PROFILE_BASED_AUTH.md` | Architecture: profile-based auth |
 
 ---
 

@@ -1,75 +1,139 @@
-function Invoke-DataverseMigration {
+function Copy-DataverseData {
     <#
     .SYNOPSIS
-        Migrates data from one Dataverse environment to another.
+        Copies data from one Dataverse environment to another.
 
     .DESCRIPTION
-        Performs a complete data migration from a source to target Dataverse environment.
+        Performs a complete data copy from a source to target Dataverse environment.
         This combines export and import into a single operation:
         1. Exports data from source environment to a temporary file
         2. Imports data into target environment
         3. Cleans up temporary file
 
-        Use this for environment-to-environment migrations.
+        Use this for environment-to-environment data migrations.
 
-        This cmdlet wraps the ppds-migrate CLI tool.
+        This cmdlet wraps the ppds CLI tool.
 
-    .PARAMETER SourceConnection
-        Connection string for the source Dataverse environment.
+    .PARAMETER SourceProfile
+        Authentication profile for the source environment.
+        If not specified, uses the active profile.
 
-    .PARAMETER TargetConnection
-        Connection string for the target Dataverse environment.
+    .PARAMETER SourceEnvironment
+        Source environment - accepts URL, friendly name, unique name, or ID.
+        Required.
+
+    .PARAMETER TargetProfile
+        Authentication profile for the target environment.
+        Supports comma-separated values for parallel import scaling.
+        If not specified, uses the active profile.
+
+    .PARAMETER TargetEnvironment
+        Target environment - accepts URL, friendly name, unique name, or ID.
+        Required.
 
     .PARAMETER SchemaPath
         Path to the schema.xml file defining entities to migrate.
 
+    .PARAMETER TempDirectory
+        Temporary directory for intermediate data file.
+        Default: system temp directory
+
+    .PARAMETER Parallel
+        Maximum concurrent entity exports.
+        Default: CPU count * 2
+
     .PARAMETER BatchSize
-        Records per batch for import operations.
-        Default: 1000
+        Records per API request.
+        Default: 5000 (Dataverse maximum)
 
     .PARAMETER BypassPlugins
-        Bypass custom plugin execution on the target environment.
+        Bypass custom plugin execution on target: sync, async, or all.
+        Requires prvBypassCustomBusinessLogic privilege.
+
+    .PARAMETER BypassFlows
+        Bypass Power Automate flow triggers on target.
+
+    .PARAMETER ContinueOnError
+        Continue import on individual record failures.
+        Default: true for copy operations.
+
+    .PARAMETER StripOwnerFields
+        Strip ownership fields allowing Dataverse to assign current user.
+
+    .PARAMETER SkipMissingColumns
+        Skip columns that exist in source but not in target environment.
+
+    .PARAMETER UserMappingPath
+        Path to user mapping XML file for remapping user references.
 
     .PARAMETER PassThru
-        Return a migration result object with statistics.
+        Return a copy result object with statistics.
 
     .EXAMPLE
-        Invoke-DataverseMigration `
-            -SourceConnection "AuthType=ClientSecret;Url=https://source.crm.dynamics.com;ClientId=xxx;ClientSecret=xxx" `
-            -TargetConnection "AuthType=ClientSecret;Url=https://target.crm.dynamics.com;ClientId=xxx;ClientSecret=xxx" `
+        Copy-DataverseData `
+            -SourceEnvironment "dev" `
+            -TargetEnvironment "test" `
             -SchemaPath "./schema.xml"
 
-        Migrates data from source to target environment.
+        Copies data from dev to test environment using the active profile.
 
     .EXAMPLE
-        $result = Invoke-DataverseMigration `
-            -SourceConnection $sourceConn `
-            -TargetConnection $targetConn `
+        Copy-DataverseData `
+            -SourceProfile "dev-admin" -SourceEnvironment "https://dev.crm.dynamics.com" `
+            -TargetProfile "test-admin" -TargetEnvironment "https://test.crm.dynamics.com" `
             -SchemaPath "./schema.xml" `
-            -BypassPlugins `
-            -PassThru
+            -BypassPlugins all -BypassFlows
 
-        Migrates with plugin bypass and returns statistics.
+        Copies with specific profiles and all plugins/flows bypassed.
 
     .OUTPUTS
-        None by default. PSCustomObject with migration statistics if -PassThru is specified.
+        None by default. PSCustomObject with statistics if -PassThru is specified.
     #>
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)]
-        [string]$SourceConnection,
+        [Parameter()]
+        [string]$SourceProfile,
 
         [Parameter(Mandatory)]
-        [string]$TargetConnection,
+        [string]$SourceEnvironment,
+
+        [Parameter()]
+        [string]$TargetProfile,
+
+        [Parameter(Mandatory)]
+        [string]$TargetEnvironment,
 
         [Parameter(Mandatory)]
         [string]$SchemaPath,
 
         [Parameter()]
-        [int]$BatchSize = 1000,
+        [string]$TempDirectory,
 
         [Parameter()]
-        [switch]$BypassPlugins,
+        [int]$Parallel = 0,
+
+        [Parameter()]
+        [ValidateRange(1, 5000)]
+        [int]$BatchSize = 5000,
+
+        [Parameter()]
+        [ValidateSet('sync', 'async', 'all')]
+        [string]$BypassPlugins,
+
+        [Parameter()]
+        [switch]$BypassFlows,
+
+        [Parameter()]
+        [switch]$ContinueOnError,
+
+        [Parameter()]
+        [switch]$StripOwnerFields,
+
+        [Parameter()]
+        [switch]$SkipMissingColumns,
+
+        [Parameter()]
+        [string]$UserMappingPath,
 
         [Parameter()]
         [switch]$PassThru
@@ -80,38 +144,78 @@ function Invoke-DataverseMigration {
         throw "Schema file not found: $SchemaPath"
     }
 
+    # Validate user mapping file if specified
+    if ($UserMappingPath -and -not (Test-Path $UserMappingPath)) {
+        throw "User mapping file not found: $UserMappingPath"
+    }
+
     # Get the CLI tool
-    $cliPath = Get-PpdsMigrateCli
+    $cliPath = Get-PpdsCli
 
     # Build arguments
     $cliArgs = @(
-        'migrate'
-        '--source-connection', $SourceConnection
-        '--target-connection', $TargetConnection
+        'data', 'copy'
         '--schema', (Resolve-Path $SchemaPath).Path
+        '--source-env', $SourceEnvironment
+        '--target-env', $TargetEnvironment
         '--json'  # Always use JSON for progress parsing
     )
 
-    if ($BatchSize -ne 1000) {
+    if ($SourceProfile) {
+        $cliArgs += '--source-profile'
+        $cliArgs += $SourceProfile
+    }
+
+    if ($TargetProfile) {
+        $cliArgs += '--target-profile'
+        $cliArgs += $TargetProfile
+    }
+
+    if ($TempDirectory) {
+        $cliArgs += '--temp-dir'
+        $cliArgs += $TempDirectory
+    }
+
+    if ($Parallel -gt 0) {
+        $cliArgs += '--parallel'
+        $cliArgs += $Parallel
+    }
+
+    if ($BatchSize -ne 5000) {
         $cliArgs += '--batch-size'
         $cliArgs += $BatchSize
     }
 
     if ($BypassPlugins) {
         $cliArgs += '--bypass-plugins'
+        $cliArgs += $BypassPlugins
     }
 
-    # Build redacted args for logging (protect credentials)
-    $redactedArgs = $cliArgs.Clone()
-    for ($i = 0; $i -lt $redactedArgs.Count; $i++) {
-        if ($redactedArgs[$i] -in @('--source-connection', '--target-connection') -and ($i + 1) -lt $redactedArgs.Count) {
-            $redactedArgs[$i + 1] = Get-RedactedConnectionString $redactedArgs[$i + 1]
-        }
+    if ($BypassFlows) {
+        $cliArgs += '--bypass-flows'
     }
-    Write-Verbose "Executing: $cliPath $($redactedArgs -join ' ')"
+
+    if ($ContinueOnError) {
+        $cliArgs += '--continue-on-error'
+    }
+
+    if ($StripOwnerFields) {
+        $cliArgs += '--strip-owner-fields'
+    }
+
+    if ($SkipMissingColumns) {
+        $cliArgs += '--skip-missing-columns'
+    }
+
+    if ($UserMappingPath) {
+        $cliArgs += '--user-mapping'
+        $cliArgs += (Resolve-Path $UserMappingPath).Path
+    }
+
+    Write-Verbose "Executing: $cliPath $($cliArgs -join ' ')"
 
     # Execute CLI and parse progress
-    $migrationResult = [PSCustomObject]@{
+    $copyResult = [PSCustomObject]@{
         RecordsProcessed = 0
         RecordsFailed    = 0
         Duration         = [TimeSpan]::Zero
@@ -184,12 +288,12 @@ function Invoke-DataverseMigration {
                         }
                     }
                     'complete' {
-                        Write-Progress -Activity "Migration complete" -Completed -Id 1
-                        Write-Progress -Activity "Migration complete" -Completed -Id 2
-                        $migrationResult.RecordsProcessed = $progress.recordsProcessed
-                        $migrationResult.RecordsFailed = $progress.errors
+                        Write-Progress -Activity "Copy complete" -Completed -Id 1
+                        Write-Progress -Activity "Copy complete" -Completed -Id 2
+                        $copyResult.RecordsProcessed = $progress.recordsProcessed
+                        $copyResult.RecordsFailed = $progress.errors
                         if ($progress.duration) {
-                            $migrationResult.Duration = [TimeSpan]::Parse($progress.duration)
+                            $copyResult.Duration = [TimeSpan]::Parse($progress.duration)
                         }
                         Write-Verbose "Completed in $($progress.duration). Records: $($progress.recordsProcessed), Errors: $($progress.errors)"
                     }
@@ -221,19 +325,19 @@ function Invoke-DataverseMigration {
             $errorOutput -join "`n"
         }
         else {
-            "Migration failed with exit code $LASTEXITCODE"
+            "Copy failed with exit code $LASTEXITCODE"
         }
         throw $errorMessage
     }
     elseif ($LASTEXITCODE -eq 1) {
         # Partial success
-        Write-Warning "Migration completed with some failures. $($migrationResult.RecordsFailed) records failed."
+        Write-Warning "Copy completed with some failures. $($copyResult.RecordsFailed) records failed."
     }
 
-    Write-Progress -Activity "Migration" -Completed -Id 1
-    Write-Progress -Activity "Migration" -Completed -Id 2
+    Write-Progress -Activity "Copy" -Completed -Id 1
+    Write-Progress -Activity "Copy" -Completed -Id 2
 
     if ($PassThru) {
-        return $migrationResult
+        return $copyResult
     }
 }

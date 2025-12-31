@@ -3,28 +3,28 @@ BeforeAll {
     Import-Module $modulePath -Force
 }
 
-Describe "Get-PpdsMigrateCli" -Tag 'Unit' {
+Describe "Get-PpdsCli" -Tag 'Unit' {
     Context "CLI Detection" {
         It "Should return path when CLI is in PATH" {
             Mock Get-Command {
-                [PSCustomObject]@{ Source = '/usr/local/bin/ppds-migrate' }
+                [PSCustomObject]@{ Source = '/usr/local/bin/ppds' }
             } -ModuleName PPDS.Tools
 
-            $result = InModuleScope PPDS.Tools { Get-PpdsMigrateCli }
-            $result | Should -Be '/usr/local/bin/ppds-migrate'
+            $result = InModuleScope PPDS.Tools { Get-PpdsCli }
+            $result | Should -Be '/usr/local/bin/ppds'
         }
 
         It "Should check global .NET tools path on Windows" {
             Mock Get-Command { $null } -ModuleName PPDS.Tools
-            Mock Test-Path { $true } -ModuleName PPDS.Tools -ParameterFilter { $Path -like '*\.dotnet\tools\ppds-migrate*' }
+            Mock Test-Path { $true } -ModuleName PPDS.Tools -ParameterFilter { $Path -like '*\.dotnet\tools\ppds*' }
 
             # This tests the path construction logic
             $result = InModuleScope PPDS.Tools {
                 $globalToolsPath = Join-Path ([System.Environment]::GetFolderPath('UserProfile')) '.dotnet' 'tools'
-                $cliExeName = if ($IsWindows) { 'ppds-migrate.exe' } else { 'ppds-migrate' }
+                $cliExeName = if ($IsWindows) { 'ppds.exe' } else { 'ppds' }
                 Join-Path $globalToolsPath $cliExeName
             }
-            $result | Should -Match 'ppds-migrate'
+            $result | Should -Match 'ppds'
         }
     }
 }
@@ -32,17 +32,10 @@ Describe "Get-PpdsMigrateCli" -Tag 'Unit' {
 Describe "Export-DataverseData" -Tag 'Unit' {
     BeforeAll {
         # Mock the CLI helper to return a known path
-        Mock Get-PpdsMigrateCli { 'ppds-migrate' } -ModuleName PPDS.Tools
+        Mock Get-PpdsCli { 'ppds' } -ModuleName PPDS.Tools
     }
 
     Context "Parameter Validation" {
-        It "Should require Connection parameter" {
-            $cmd = Get-Command Export-DataverseData
-            $cmd.Parameters['Connection'].Attributes |
-                Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] } |
-                ForEach-Object { $_.Mandatory } | Should -Contain $true
-        }
-
         It "Should require SchemaPath parameter" {
             $cmd = Get-Command Export-DataverseData
             $cmd.Parameters['SchemaPath'].Attributes |
@@ -57,8 +50,21 @@ Describe "Export-DataverseData" -Tag 'Unit' {
                 ForEach-Object { $_.Mandatory } | Should -Contain $true
         }
 
+        It "Should have optional Profile parameter" {
+            $cmd = Get-Command Export-DataverseData
+            $cmd.Parameters['Profile'] | Should -Not -BeNullOrEmpty
+            $cmd.Parameters['Profile'].Attributes |
+                Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] } |
+                ForEach-Object { $_.Mandatory } | Should -Not -Contain $true
+        }
+
+        It "Should have optional Environment parameter" {
+            $cmd = Get-Command Export-DataverseData
+            $cmd.Parameters['Environment'] | Should -Not -BeNullOrEmpty
+        }
+
         It "Should throw when schema file does not exist" {
-            { Export-DataverseData -Connection "test" -SchemaPath "./nonexistent.xml" -OutputPath "./out.zip" } |
+            { Export-DataverseData -SchemaPath "./nonexistent.xml" -OutputPath "./out.zip" } |
                 Should -Throw "*Schema file not found*"
         }
     }
@@ -71,17 +77,12 @@ Describe "Export-DataverseData" -Tag 'Unit' {
         }
 
         It "Should include --json flag for progress parsing" {
-            $capturedArgs = $null
-            Mock Invoke-Expression { } -ModuleName PPDS.Tools
-
-            # We can't easily capture the & operator, but we can verify the function constructs args correctly
             InModuleScope PPDS.Tools -Parameters @{ schemaPath = $script:tempSchema } {
                 param($schemaPath)
 
                 # Simulate what the function does internally
                 $cliArgs = @(
-                    'export'
-                    '--connection', 'TestConn'
+                    'data', 'export'
                     '--schema', $schemaPath
                     '--output', './out.zip'
                     '--json'
@@ -90,9 +91,34 @@ Describe "Export-DataverseData" -Tag 'Unit' {
             }
         }
 
+        It "Should include --profile when specified" {
+            InModuleScope PPDS.Tools {
+                $cliArgs = @('data', 'export')
+                $Profile = 'dev'
+                if ($Profile) {
+                    $cliArgs += '--profile'
+                    $cliArgs += $Profile
+                }
+                $cliArgs | Should -Contain '--profile'
+                $cliArgs | Should -Contain 'dev'
+            }
+        }
+
+        It "Should include --environment when specified" {
+            InModuleScope PPDS.Tools {
+                $cliArgs = @('data', 'export')
+                $Environment = 'https://org.crm.dynamics.com'
+                if ($Environment) {
+                    $cliArgs += '--environment'
+                    $cliArgs += $Environment
+                }
+                $cliArgs | Should -Contain '--environment'
+            }
+        }
+
         It "Should include --parallel when specified" {
             InModuleScope PPDS.Tools {
-                $cliArgs = @('export')
+                $cliArgs = @('data', 'export')
                 $Parallel = 8
                 if ($Parallel -gt 0) {
                     $cliArgs += '--parallel'
@@ -102,33 +128,15 @@ Describe "Export-DataverseData" -Tag 'Unit' {
                 $cliArgs | Should -Contain 8
             }
         }
-
-        It "Should include --include-files when specified" {
-            InModuleScope PPDS.Tools {
-                $cliArgs = @('export')
-                $IncludeFiles = $true
-                if ($IncludeFiles) {
-                    $cliArgs += '--include-files'
-                }
-                $cliArgs | Should -Contain '--include-files'
-            }
-        }
     }
 }
 
 Describe "Import-DataverseData" -Tag 'Unit' {
     BeforeAll {
-        Mock Get-PpdsMigrateCli { 'ppds-migrate' } -ModuleName PPDS.Tools
+        Mock Get-PpdsCli { 'ppds' } -ModuleName PPDS.Tools
     }
 
     Context "Parameter Validation" {
-        It "Should require Connection parameter" {
-            $cmd = Get-Command Import-DataverseData
-            $cmd.Parameters['Connection'].Attributes |
-                Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] } |
-                ForEach-Object { $_.Mandatory } | Should -Contain $true
-        }
-
         It "Should require DataPath parameter" {
             $cmd = Get-Command Import-DataverseData
             $cmd.Parameters['DataPath'].Attributes |
@@ -136,8 +144,13 @@ Describe "Import-DataverseData" -Tag 'Unit' {
                 ForEach-Object { $_.Mandatory } | Should -Contain $true
         }
 
+        It "Should have optional Profile parameter" {
+            $cmd = Get-Command Import-DataverseData
+            $cmd.Parameters['Profile'] | Should -Not -BeNullOrEmpty
+        }
+
         It "Should throw when data file does not exist" {
-            { Import-DataverseData -Connection "test" -DataPath "./nonexistent.zip" } |
+            { Import-DataverseData -DataPath "./nonexistent.zip" } |
                 Should -Throw "*Data file not found*"
         }
 
@@ -149,23 +162,34 @@ Describe "Import-DataverseData" -Tag 'Unit' {
             $validateSet.ValidValues | Should -Contain 'Update'
             $validateSet.ValidValues | Should -Contain 'Upsert'
         }
+
+        It "Should validate BypassPlugins parameter values" {
+            $cmd = Get-Command Import-DataverseData
+            $validateSet = $cmd.Parameters['BypassPlugins'].Attributes |
+                Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] }
+            $validateSet.ValidValues | Should -Contain 'sync'
+            $validateSet.ValidValues | Should -Contain 'async'
+            $validateSet.ValidValues | Should -Contain 'all'
+        }
     }
 
     Context "CLI Argument Building" {
         It "Should include --bypass-plugins when specified" {
             InModuleScope PPDS.Tools {
-                $cliArgs = @('import')
-                $BypassPlugins = $true
+                $cliArgs = @('data', 'import')
+                $BypassPlugins = 'all'
                 if ($BypassPlugins) {
                     $cliArgs += '--bypass-plugins'
+                    $cliArgs += $BypassPlugins
                 }
                 $cliArgs | Should -Contain '--bypass-plugins'
+                $cliArgs | Should -Contain 'all'
             }
         }
 
         It "Should include --bypass-flows when specified" {
             InModuleScope PPDS.Tools {
-                $cliArgs = @('import')
+                $cliArgs = @('data', 'import')
                 $BypassFlows = $true
                 if ($BypassFlows) {
                     $cliArgs += '--bypass-flows'
@@ -176,7 +200,7 @@ Describe "Import-DataverseData" -Tag 'Unit' {
 
         It "Should include --continue-on-error when specified" {
             InModuleScope PPDS.Tools {
-                $cliArgs = @('import')
+                $cliArgs = @('data', 'import')
                 $ContinueOnError = $true
                 if ($ContinueOnError) {
                     $cliArgs += '--continue-on-error'
@@ -187,7 +211,7 @@ Describe "Import-DataverseData" -Tag 'Unit' {
 
         It "Should include --mode when not Upsert" {
             InModuleScope PPDS.Tools {
-                $cliArgs = @('import')
+                $cliArgs = @('data', 'import')
                 $Mode = 'Create'
                 if ($Mode -ne 'Upsert') {
                     $cliArgs += '--mode'
@@ -200,7 +224,7 @@ Describe "Import-DataverseData" -Tag 'Unit' {
 
         It "Should not include --mode when Upsert (default)" {
             InModuleScope PPDS.Tools {
-                $cliArgs = @('import')
+                $cliArgs = @('data', 'import')
                 $Mode = 'Upsert'
                 if ($Mode -ne 'Upsert') {
                     $cliArgs += '--mode'
@@ -214,7 +238,7 @@ Describe "Import-DataverseData" -Tag 'Unit' {
 
 Describe "Get-DataverseDependencyGraph" -Tag 'Unit' {
     BeforeAll {
-        Mock Get-PpdsMigrateCli { 'ppds-migrate' } -ModuleName PPDS.Tools
+        Mock Get-PpdsCli { 'ppds' } -ModuleName PPDS.Tools
     }
 
     Context "Parameter Validation" {
@@ -285,106 +309,57 @@ Describe "Get-DataverseDependencyGraph" -Tag 'Unit' {
                 $result.DeferredFields.Count | Should -Be 1
             }
         }
-
-        It "Should use [bool] cast for HasCircular property" {
-            InModuleScope PPDS.Tools {
-                # Test that [bool]$null returns $false
-                $hasCircular = [bool]$null
-                $hasCircular | Should -Be $false
-
-                # Test that [bool]$true returns $true
-                $hasCircular = [bool]$true
-                $hasCircular | Should -Be $true
-            }
-        }
     }
 }
 
-Describe "Invoke-DataverseMigration" -Tag 'Unit' {
+Describe "Copy-DataverseData" -Tag 'Unit' {
     BeforeAll {
-        Mock Get-PpdsMigrateCli { 'ppds-migrate' } -ModuleName PPDS.Tools
+        Mock Get-PpdsCli { 'ppds' } -ModuleName PPDS.Tools
     }
 
     Context "Parameter Validation" {
-        It "Should require SourceConnection parameter" {
-            $cmd = Get-Command Invoke-DataverseMigration
-            $cmd.Parameters['SourceConnection'].Attributes |
+        It "Should require SourceEnvironment parameter" {
+            $cmd = Get-Command Copy-DataverseData
+            $cmd.Parameters['SourceEnvironment'].Attributes |
                 Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] } |
                 ForEach-Object { $_.Mandatory } | Should -Contain $true
         }
 
-        It "Should require TargetConnection parameter" {
-            $cmd = Get-Command Invoke-DataverseMigration
-            $cmd.Parameters['TargetConnection'].Attributes |
+        It "Should require TargetEnvironment parameter" {
+            $cmd = Get-Command Copy-DataverseData
+            $cmd.Parameters['TargetEnvironment'].Attributes |
                 Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] } |
                 ForEach-Object { $_.Mandatory } | Should -Contain $true
         }
 
         It "Should require SchemaPath parameter" {
-            $cmd = Get-Command Invoke-DataverseMigration
+            $cmd = Get-Command Copy-DataverseData
             $cmd.Parameters['SchemaPath'].Attributes |
                 Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] } |
                 ForEach-Object { $_.Mandatory } | Should -Contain $true
         }
 
+        It "Should have optional SourceProfile parameter" {
+            $cmd = Get-Command Copy-DataverseData
+            $cmd.Parameters['SourceProfile'] | Should -Not -BeNullOrEmpty
+        }
+
+        It "Should have optional TargetProfile parameter" {
+            $cmd = Get-Command Copy-DataverseData
+            $cmd.Parameters['TargetProfile'] | Should -Not -BeNullOrEmpty
+        }
+
         It "Should throw when schema file does not exist" {
-            { Invoke-DataverseMigration -SourceConnection "src" -TargetConnection "tgt" -SchemaPath "./nonexistent.xml" } |
+            { Copy-DataverseData -SourceEnvironment "src" -TargetEnvironment "tgt" -SchemaPath "./nonexistent.xml" } |
                 Should -Throw "*Schema file not found*"
         }
     }
 
-    Context "CLI Argument Building" {
-        It "Should include --bypass-plugins when specified" {
-            InModuleScope PPDS.Tools {
-                $cliArgs = @('migrate')
-                $BypassPlugins = $true
-                if ($BypassPlugins) {
-                    $cliArgs += '--bypass-plugins'
-                }
-                $cliArgs | Should -Contain '--bypass-plugins'
-            }
-        }
-
-        It "Should include --batch-size when not default" {
-            InModuleScope PPDS.Tools {
-                $cliArgs = @('migrate')
-                $BatchSize = 500
-                if ($BatchSize -ne 1000) {
-                    $cliArgs += '--batch-size'
-                    $cliArgs += $BatchSize
-                }
-                $cliArgs | Should -Contain '--batch-size'
-                $cliArgs | Should -Contain 500
-            }
-        }
-
-        It "Should not include --batch-size when default (1000)" {
-            InModuleScope PPDS.Tools {
-                $cliArgs = @('migrate')
-                $BatchSize = 1000
-                if ($BatchSize -ne 1000) {
-                    $cliArgs += '--batch-size'
-                    $cliArgs += $BatchSize
-                }
-                $cliArgs | Should -Not -Contain '--batch-size'
-            }
-        }
-    }
-
-    Context "Result Object" {
-        It "Should initialize result object with correct properties" {
-            InModuleScope PPDS.Tools {
-                $migrationResult = [PSCustomObject]@{
-                    RecordsProcessed = 0
-                    RecordsFailed    = 0
-                    Duration         = [TimeSpan]::Zero
-                }
-
-                $migrationResult.PSObject.Properties.Name | Should -Contain 'RecordsProcessed'
-                $migrationResult.PSObject.Properties.Name | Should -Contain 'RecordsFailed'
-                $migrationResult.PSObject.Properties.Name | Should -Contain 'Duration'
-                $migrationResult.Duration | Should -Be ([TimeSpan]::Zero)
-            }
+    Context "Alias" {
+        It "Should have Invoke-DataverseMigration alias" {
+            $alias = Get-Alias Invoke-DataverseMigration -ErrorAction SilentlyContinue
+            $alias | Should -Not -BeNullOrEmpty
+            $alias.ReferencedCommand.Name | Should -Be 'Copy-DataverseData'
         }
     }
 }
@@ -405,8 +380,8 @@ Describe "Migration Cmdlet Help" -Tag 'Unit' {
         $help.Synopsis | Should -Not -BeNullOrEmpty
     }
 
-    It "Invoke-DataverseMigration should have synopsis" {
-        $help = Get-Help Invoke-DataverseMigration
+    It "Copy-DataverseData should have synopsis" {
+        $help = Get-Help Copy-DataverseData
         $help.Synopsis | Should -Not -BeNullOrEmpty
     }
 }
