@@ -6,14 +6,16 @@ function Export-DataverseData {
     .DESCRIPTION
         Exports data from Dataverse based on a schema definition file.
         Uses parallel processing for high-performance data extraction.
-        Supports file attachments and provides progress reporting.
 
-        This cmdlet wraps the ppds-migrate CLI tool.
+        This cmdlet wraps the ppds CLI tool.
 
-    .PARAMETER Connection
-        Dataverse connection string. Supports multiple authentication types:
-        - AuthType=ClientSecret;Url=https://org.crm.dynamics.com;ClientId=xxx;ClientSecret=xxx
-        - AuthType=OAuth;Url=https://org.crm.dynamics.com;...
+    .PARAMETER Profile
+        Authentication profile name. If not specified, uses the active profile.
+        Create profiles with Connect-DataverseEnvironment or 'ppds auth create'.
+
+    .PARAMETER Environment
+        Environment URL, friendly name, unique name, or ID.
+        Overrides the profile's default environment if specified.
 
     .PARAMETER SchemaPath
         Path to the schema.xml file that defines entities and relationships to export.
@@ -25,42 +27,34 @@ function Export-DataverseData {
         Degree of parallelism for concurrent entity exports.
         Default: CPU count * 2
 
-    .PARAMETER PageSize
-        FetchXML page size for data retrieval.
-        Default: 5000
-
-    .PARAMETER IncludeFiles
-        Include file attachments (notes, annotations) in the export.
+    .PARAMETER BatchSize
+        Records per API request (controls request size, all records are exported).
+        Default: 5000 (Dataverse maximum)
 
     .PARAMETER PassThru
         Return the output file as a FileInfo object.
 
     .EXAMPLE
-        Export-DataverseData `
-            -Connection "AuthType=ClientSecret;Url=https://org.crm.dynamics.com;ClientId=xxx;ClientSecret=xxx" `
-            -SchemaPath "./schema.xml" `
-            -OutputPath "./data.zip"
+        Export-DataverseData -SchemaPath "./schema.xml" -OutputPath "./data.zip"
 
-        Exports data from Dataverse to data.zip using the schema definition.
+        Exports data using the active profile.
 
     .EXAMPLE
-        $file = Export-DataverseData `
-            -Connection $connString `
-            -SchemaPath "./schema.xml" `
-            -OutputPath "./data.zip" `
-            -Parallel 16 `
-            -IncludeFiles `
-            -PassThru
+        Export-DataverseData -Profile "dev" -Environment "https://org.crm.dynamics.com" `
+            -SchemaPath "./schema.xml" -OutputPath "./data.zip" -Parallel 16
 
-        Exports with 16 parallel threads, includes file attachments, and returns the file object.
+        Exports using a specific profile and environment with 16 parallel threads.
 
     .OUTPUTS
         None by default. FileInfo if -PassThru is specified.
     #>
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)]
-        [string]$Connection,
+        [Parameter()]
+        [string]$Profile,
+
+        [Parameter()]
+        [string]$Environment,
 
         [Parameter(Mandatory)]
         [string]$SchemaPath,
@@ -72,10 +66,8 @@ function Export-DataverseData {
         [int]$Parallel = 0,
 
         [Parameter()]
-        [int]$PageSize = 5000,
-
-        [Parameter()]
-        [switch]$IncludeFiles,
+        [ValidateRange(1, 5000)]
+        [int]$BatchSize = 5000,
 
         [Parameter()]
         [switch]$PassThru
@@ -87,39 +79,37 @@ function Export-DataverseData {
     }
 
     # Get the CLI tool
-    $cliPath = Get-PpdsMigrateCli
+    $cliPath = Get-PpdsCli
 
     # Build arguments
     $cliArgs = @(
-        'export'
-        '--connection', $Connection
+        'data', 'export'
         '--schema', (Resolve-Path $SchemaPath).Path
         '--output', $OutputPath
         '--json'  # Always use JSON for progress parsing
     )
+
+    if ($Profile) {
+        $cliArgs += '--profile'
+        $cliArgs += $Profile
+    }
+
+    if ($Environment) {
+        $cliArgs += '--environment'
+        $cliArgs += $Environment
+    }
 
     if ($Parallel -gt 0) {
         $cliArgs += '--parallel'
         $cliArgs += $Parallel
     }
 
-    if ($PageSize -ne 5000) {
-        $cliArgs += '--page-size'
-        $cliArgs += $PageSize
+    if ($BatchSize -ne 5000) {
+        $cliArgs += '--batch-size'
+        $cliArgs += $BatchSize
     }
 
-    if ($IncludeFiles) {
-        $cliArgs += '--include-files'
-    }
-
-    # Build redacted args for logging (protect credentials)
-    $redactedArgs = $cliArgs.Clone()
-    for ($i = 0; $i -lt $redactedArgs.Count; $i++) {
-        if ($redactedArgs[$i] -eq '--connection' -and ($i + 1) -lt $redactedArgs.Count) {
-            $redactedArgs[$i + 1] = Get-RedactedConnectionString $redactedArgs[$i + 1]
-        }
-    }
-    Write-Verbose "Executing: $cliPath $($redactedArgs -join ' ')"
+    Write-Verbose "Executing: $cliPath $($cliArgs -join ' ')"
 
     # Execute CLI and parse progress
     $errorOutput = @()

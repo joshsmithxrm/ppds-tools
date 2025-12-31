@@ -13,7 +13,7 @@ function Get-DataverseDependencyGraph {
 
         This is useful for understanding import order before running a migration.
 
-        This cmdlet wraps the ppds-migrate CLI tool.
+        This cmdlet wraps the ppds CLI tool.
 
     .PARAMETER SchemaPath
         Path to the schema.xml file to analyze.
@@ -57,13 +57,13 @@ function Get-DataverseDependencyGraph {
     }
 
     # Get the CLI tool
-    $cliPath = Get-PpdsMigrateCli
+    $cliPath = Get-PpdsCli
 
     # Build arguments
     $cliArgs = @(
-        'analyze'
+        'data', 'analyze'
         '--schema', (Resolve-Path $SchemaPath).Path
-        '--output-format', 'json'
+        '--json'
     )
 
     Write-Verbose "Executing: $cliPath $($cliArgs -join ' ')"

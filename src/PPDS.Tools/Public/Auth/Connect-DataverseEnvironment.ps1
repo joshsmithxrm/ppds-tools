@@ -1,57 +1,114 @@
 function Connect-DataverseEnvironment {
     <#
     .SYNOPSIS
-        Connects to a Dataverse environment for plugin deployment operations.
+        Creates an authentication profile for Dataverse operations.
 
     .DESCRIPTION
-        Establishes an authenticated connection to a Dataverse environment using
-        the authentication hierarchy:
-        1. Explicit parameters (ConnectionString or SPN credentials)
-        2. Environment variables (from .env file)
-        3. Interactive device code flow (if -Interactive specified)
+        Creates and stores an authentication profile using the ppds CLI.
+        The profile can then be used by other cmdlets via the -Profile parameter.
 
-    .PARAMETER ConnectionString
-        Full connection string for Dataverse (legacy support - extracts URL and uses SPN auth).
+        Authentication methods supported:
+        - Interactive browser (default)
+        - Device code flow (-DeviceCode)
+        - Service principal with client secret (-ApplicationId, -ClientSecret, -TenantId)
+        - Service principal with certificate file (-ApplicationId, -CertificatePath, -TenantId)
+        - Service principal with certificate store (-ApplicationId, -CertificateThumbprint, -TenantId)
+        - Managed identity (-ManagedIdentity)
+        - Username/password (-Username, -Password)
+        - GitHub federated (-GitHubFederated, -ApplicationId, -TenantId)
+        - Azure DevOps federated (-AzureDevOpsFederated, -ApplicationId, -TenantId)
 
-    .PARAMETER EnvironmentUrl
-        The Dataverse environment URL (e.g., https://myorg.crm.dynamics.com).
+        This cmdlet wraps the ppds CLI tool.
 
-    .PARAMETER ClientId
+    .PARAMETER Name
+        Name for the profile (max 30 characters). If not specified, auto-generated.
+
+    .PARAMETER Environment
+        Default environment URL, ID, unique name, or partial name.
+        Required for service principal authentication (must be full URL).
+
+    .PARAMETER DeviceCode
+        Use device code flow for interactive authentication.
+
+    .PARAMETER ApplicationId
         Azure AD application (client) ID for service principal authentication.
 
     .PARAMETER ClientSecret
         Client secret for service principal authentication.
 
     .PARAMETER TenantId
-        Azure AD tenant ID.
+        Azure AD tenant ID for service principal or federated authentication.
 
-    .PARAMETER EnvFile
-        Path to .env file with credentials.
+    .PARAMETER CertificatePath
+        Path to certificate file (.pfx/.pem) for certificate authentication.
 
-    .PARAMETER Interactive
-        Use interactive device code flow for authentication.
+    .PARAMETER CertificatePassword
+        Password for the certificate file.
+
+    .PARAMETER CertificateThumbprint
+        Certificate thumbprint for Windows certificate store authentication.
+
+    .PARAMETER ManagedIdentity
+        Use Azure Managed Identity.
+
+    .PARAMETER Username
+        Username for username/password authentication.
+
+    .PARAMETER Password
+        Password for username/password authentication.
+
+    .PARAMETER GitHubFederated
+        Use GitHub Actions OIDC federation.
+
+    .PARAMETER AzureDevOpsFederated
+        Use Azure DevOps OIDC federation.
+
+    .PARAMETER Cloud
+        Cloud environment: Public (default), USGov, USGovHigh, USGovDoD, China.
+
+    .PARAMETER PassThru
+        Return the profile name instead of just displaying success message.
 
     .EXAMPLE
-        Connect-DataverseEnvironment -EnvironmentUrl "https://myorg.crm.dynamics.com" -Interactive
-        Connects using device code flow (opens browser for authentication).
+        Connect-DataverseEnvironment -DeviceCode -Name "dev"
+
+        Creates a profile using device code flow.
 
     .EXAMPLE
-        Connect-DataverseEnvironment -ClientId $id -ClientSecret $secret -TenantId $tenant -EnvironmentUrl $url
-        Connects using service principal credentials.
+        Connect-DataverseEnvironment -DeviceCode -Environment "https://myorg.crm.dynamics.com" -Name "dev"
+
+        Creates a profile with a default environment set.
+
+    .EXAMPLE
+        Connect-DataverseEnvironment -ApplicationId $appId -ClientSecret $secret -TenantId $tenant `
+            -Environment "https://myorg.crm.dynamics.com" -Name "ci"
+
+        Creates a service principal profile for CI/CD scenarios.
+
+    .EXAMPLE
+        $profile = Connect-DataverseEnvironment -DeviceCode -PassThru
+        Deploy-DataversePlugins -ConfigPath "./registrations.json" -Profile $profile
+
+        Creates a profile and uses it immediately.
 
     .OUTPUTS
-        DataverseConnection object with access token and environment information.
+        None by default. String (profile name) if -PassThru is specified.
     #>
     [CmdletBinding()]
     param(
         [Parameter()]
-        [string]$ConnectionString,
+        [ValidateLength(1, 30)]
+        [string]$Name,
 
         [Parameter()]
-        [string]$EnvironmentUrl,
+        [Alias('EnvironmentUrl')]
+        [string]$Environment,
 
         [Parameter()]
-        [string]$ClientId,
+        [switch]$DeviceCode,
+
+        [Parameter()]
+        [string]$ApplicationId,
 
         [Parameter()]
         [string]$ClientSecret,
@@ -60,141 +117,258 @@ function Connect-DataverseEnvironment {
         [string]$TenantId,
 
         [Parameter()]
-        [string]$EnvFile,
+        [string]$CertificatePath,
 
         [Parameter()]
-        [switch]$Interactive
+        [string]$CertificatePassword,
+
+        [Parameter()]
+        [string]$CertificateThumbprint,
+
+        [Parameter()]
+        [switch]$ManagedIdentity,
+
+        [Parameter()]
+        [string]$Username,
+
+        [Parameter()]
+        [string]$Password,
+
+        [Parameter()]
+        [switch]$GitHubFederated,
+
+        [Parameter()]
+        [switch]$AzureDevOpsFederated,
+
+        [Parameter()]
+        [ValidateSet('Public', 'USGov', 'USGovHigh', 'USGovDoD', 'China')]
+        [string]$Cloud = 'Public',
+
+        [Parameter()]
+        [switch]$PassThru
     )
 
-    # Load environment file if specified or by default
-    if (-not [string]::IsNullOrWhiteSpace($EnvFile)) {
-        Import-EnvFile -Path $EnvFile | Out-Null
+    # Get the CLI tool
+    $cliPath = Get-PpdsCli
+
+    # Build arguments
+    $cliArgs = @(
+        'auth', 'create'
+    )
+
+    if ($Name) {
+        $cliArgs += '--name'
+        $cliArgs += $Name
     }
-    elseif ([string]::IsNullOrWhiteSpace($ConnectionString) -and
-            [string]::IsNullOrWhiteSpace($ClientId)) {
-        Import-EnvFile | Out-Null
+
+    if ($Environment) {
+        $cliArgs += '--environment'
+        $cliArgs += $Environment
     }
 
-    # Determine authentication method and parameters
-    $authMethod = $null
-    $finalUrl = $null
-    $finalClientId = $null
-    $finalClientSecret = $null
-    $finalTenantId = $null
+    if ($Cloud -ne 'Public') {
+        $cliArgs += '--cloud'
+        $cliArgs += $Cloud
+    }
 
-    # Priority 1: Explicit connection string (parse it for credentials)
-    if (-not [string]::IsNullOrWhiteSpace($ConnectionString)) {
-        # Use case-insensitive hashtable for connection string keys
-        $parsed = [System.Collections.Generic.Dictionary[string,string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-        $ConnectionString -split ";" | ForEach-Object {
-            $parts = $_ -split "=", 2
-            if ($parts.Count -eq 2) {
-                $parsed[$parts[0].Trim()] = $parts[1].Trim()
-            }
-        }
+    if ($TenantId) {
+        $cliArgs += '--tenant'
+        $cliArgs += $TenantId
+    }
 
-        $finalUrl = $parsed["Url"]
-        if ($parsed["AuthType"] -eq "ClientSecret") {
-            $finalClientId = $parsed["ClientId"]
-            $finalClientSecret = $parsed["ClientSecret"]
-            # Try to extract tenant from URL or use common
-            $finalTenantId = if ($TenantId) { $TenantId } else { "organizations" }
-            $authMethod = "Connection String (Service Principal)"
-        }
-        elseif ($parsed["AuthType"] -eq "OAuth") {
-            # OAuth connection string - use interactive
-            $Interactive = $true
-            $authMethod = "Connection String (Interactive)"
+    if ($DeviceCode) {
+        $cliArgs += '--deviceCode'
+    }
+
+    if ($ApplicationId) {
+        $cliArgs += '--applicationId'
+        $cliArgs += $ApplicationId
+    }
+
+    if ($ClientSecret) {
+        $cliArgs += '--clientSecret'
+        $cliArgs += $ClientSecret
+    }
+
+    if ($CertificatePath) {
+        $cliArgs += '--certificateDiskPath'
+        $cliArgs += $CertificatePath
+    }
+
+    if ($CertificatePassword) {
+        $cliArgs += '--certificatePassword'
+        $cliArgs += $CertificatePassword
+    }
+
+    if ($CertificateThumbprint) {
+        $cliArgs += '--certificateThumbprint'
+        $cliArgs += $CertificateThumbprint
+    }
+
+    if ($ManagedIdentity) {
+        $cliArgs += '--managedIdentity'
+    }
+
+    if ($Username) {
+        $cliArgs += '--username'
+        $cliArgs += $Username
+    }
+
+    if ($Password) {
+        $cliArgs += '--password'
+        $cliArgs += $Password
+    }
+
+    if ($GitHubFederated) {
+        $cliArgs += '--githubFederated'
+    }
+
+    if ($AzureDevOpsFederated) {
+        $cliArgs += '--azureDevOpsFederated'
+    }
+
+    Write-Verbose "Executing: $cliPath $($cliArgs -join ' ')"
+
+    # Execute CLI - don't capture output so interactive prompts work
+    & $cliPath @cliArgs
+
+    # Check exit code
+    if ($LASTEXITCODE -ne 0) {
+        throw "Profile creation failed with exit code $LASTEXITCODE"
+    }
+
+    if ($PassThru) {
+        # Return the profile name (either specified or we need to query the active one)
+        if ($Name) {
+            return $Name
         }
         else {
-            throw "Unsupported AuthType in connection string. Supported: ClientSecret, OAuth"
-        }
-    }
-    # Priority 2: Explicit SPN parameters
-    elseif (-not [string]::IsNullOrWhiteSpace($ClientId) -and
-            -not [string]::IsNullOrWhiteSpace($ClientSecret) -and
-            -not [string]::IsNullOrWhiteSpace($TenantId)) {
-
-        $finalUrl = if (-not [string]::IsNullOrWhiteSpace($EnvironmentUrl)) {
-            $EnvironmentUrl
-        } else {
-            Get-EnvVar "DATAVERSE_URL"
-        }
-
-        if ([string]::IsNullOrWhiteSpace($finalUrl)) {
-            throw "EnvironmentUrl required when using service principal parameters"
-        }
-
-        $finalClientId = $ClientId
-        $finalClientSecret = $ClientSecret
-        $finalTenantId = $TenantId
-        $authMethod = "Service Principal (Parameters)"
-    }
-    # Priority 3: Environment variables for SPN
-    else {
-        $envUrl = Get-EnvVar "DATAVERSE_URL"
-        $envClientId = Get-EnvVar "SP_APPLICATION_ID"
-        $envClientSecret = Get-EnvVar "SP_CLIENT_SECRET"
-        $envTenantId = Get-EnvVar "SP_TENANT_ID"
-
-        $finalUrl = if (-not [string]::IsNullOrWhiteSpace($EnvironmentUrl)) {
-            $EnvironmentUrl
-        } else {
-            $envUrl
-        }
-
-        if (-not [string]::IsNullOrWhiteSpace($envClientId) -and
-            -not [string]::IsNullOrWhiteSpace($envClientSecret) -and
-            -not [string]::IsNullOrWhiteSpace($finalUrl)) {
-
-            $finalClientId = $envClientId
-            $finalClientSecret = $envClientSecret
-            $finalTenantId = if ($envTenantId) { $envTenantId } else { "organizations" }
-            $authMethod = "Service Principal (Environment)"
-        }
-        # Priority 4: Interactive device code flow
-        elseif ($Interactive) {
-            if ([string]::IsNullOrWhiteSpace($finalUrl)) {
-                throw "EnvironmentUrl required for interactive authentication"
+            # Query the active profile to get its name/identifier
+            $whoOutput = & $cliPath 'auth' 'who' '--json' 2>&1 | Out-String
+            try {
+                $who = $whoOutput | ConvertFrom-Json
+                if ($who.active -and $who.active.name) {
+                    return $who.active.name
+                }
+                elseif ($who.active -and $who.active.index) {
+                    return "[$($who.active.index)]"
+                }
             }
-            $authMethod = "Interactive (Device Code)"
-        }
-        else {
-            Write-LogError "No authentication method available."
-            Write-Log "Options:"
-            Write-Log "  1. Provide -ConnectionString parameter"
-            Write-Log "  2. Provide -ClientId, -ClientSecret, -TenantId, -EnvironmentUrl parameters"
-            Write-Log "  3. Create .env.dev file with SP_APPLICATION_ID, SP_CLIENT_SECRET, SP_TENANT_ID, DATAVERSE_URL"
-            Write-Log "  4. Use -Interactive flag for device code authentication"
-            throw "No authentication credentials available"
+            catch {
+                Write-Warning "Could not determine profile name"
+            }
         }
     }
+}
 
-    # Log connection attempt
-    Write-Log "Auth method: $authMethod"
-    Write-Log "Environment: $finalUrl"
+<#
+.SYNOPSIS
+    Gets the current active authentication profile.
 
-    # Connect using appropriate method
+.DESCRIPTION
+    Returns information about the currently active authentication profile.
+    Uses the ppds CLI 'auth who' command.
+
+.PARAMETER AsJson
+    Return raw JSON output.
+
+.EXAMPLE
+    Get-DataverseProfile
+
+    Shows the active profile information.
+
+.OUTPUTS
+    PSCustomObject with profile details.
+#>
+function Get-DataverseProfile {
+    [CmdletBinding()]
+    param(
+        [Parameter()]
+        [switch]$AsJson
+    )
+
+    # Get the CLI tool
+    $cliPath = Get-PpdsCli
+
+    # Build arguments
+    $cliArgs = @('auth', 'who', '--json')
+
+    Write-Verbose "Executing: $cliPath $($cliArgs -join ' ')"
+
+    # Execute CLI and capture output
+    $output = & $cliPath @cliArgs 2>&1
+
+    if ($LASTEXITCODE -ne 0) {
+        $errorMessage = $output | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] }
+        if ($errorMessage) {
+            throw "Failed to get profile: $($errorMessage -join "`n")"
+        }
+        throw "Failed to get profile with exit code $LASTEXITCODE"
+    }
+
+    if ($AsJson) {
+        return $output | Out-String
+    }
+
     try {
-        if ($authMethod -eq "Interactive (Device Code)" -or $authMethod -eq "Connection String (Interactive)") {
-            Write-Log "Starting interactive authentication..."
-            $tenantForInteractive = if ($finalTenantId) { $finalTenantId } else { "organizations" }
-            $connection = New-DataverseConnectionInteractive -EnvironmentUrl $finalUrl -TenantId $tenantForInteractive
+        $result = $output | Out-String | ConvertFrom-Json
+        if ($result.active) {
+            return $result.active
         }
         else {
-            Write-Log "Connecting to Dataverse..."
-            $connection = New-DataverseConnection -EnvironmentUrl $finalUrl -TenantId $finalTenantId -ClientId $finalClientId -ClientSecret $finalClientSecret
+            Write-Warning "No active profile. Use Connect-DataverseEnvironment to create one."
+            return $null
         }
-
-        if (-not $connection -or -not $connection.IsReady) {
-            throw "Connection failed - IsReady is false"
-        }
-
-        Write-LogSuccess "Connected to: $($connection.ConnectedOrgFriendlyName)"
-        return $connection
     }
     catch {
-        Write-LogError "Connection failed: $($_.Exception.Message)"
-        throw
+        throw "Failed to parse profile output: $_"
+    }
+}
+
+<#
+.SYNOPSIS
+    Lists all authentication profiles.
+
+.DESCRIPTION
+    Returns all configured authentication profiles.
+    Uses the ppds CLI 'auth list' command.
+
+.EXAMPLE
+    Get-DataverseProfiles
+
+    Lists all profiles.
+
+.OUTPUTS
+    Array of PSCustomObject with profile details.
+#>
+function Get-DataverseProfiles {
+    [CmdletBinding()]
+    param()
+
+    # Get the CLI tool
+    $cliPath = Get-PpdsCli
+
+    # Build arguments
+    $cliArgs = @('auth', 'list', '--json')
+
+    Write-Verbose "Executing: $cliPath $($cliArgs -join ' ')"
+
+    # Execute CLI and capture output
+    $output = & $cliPath @cliArgs 2>&1
+
+    if ($LASTEXITCODE -ne 0) {
+        $errorMessage = $output | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] }
+        if ($errorMessage) {
+            throw "Failed to list profiles: $($errorMessage -join "`n")"
+        }
+        throw "Failed to list profiles with exit code $LASTEXITCODE"
+    }
+
+    try {
+        $result = $output | Out-String | ConvertFrom-Json
+        return $result.profiles
+    }
+    catch {
+        throw "Failed to parse profiles output: $_"
     }
 }

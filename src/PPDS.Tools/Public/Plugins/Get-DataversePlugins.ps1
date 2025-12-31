@@ -1,17 +1,13 @@
-function Get-DataversePluginDrift {
+function Get-DataversePlugins {
     <#
     .SYNOPSIS
-        Compares plugin configuration against Dataverse environment state.
+        Lists registered plugins in a Dataverse environment.
 
     .DESCRIPTION
-        Analyzes differences between the registrations.json configuration and actual
-        Dataverse plugin registrations. Reports orphaned components, missing components,
-        and configuration differences.
+        Retrieves all plugin assemblies and packages registered in the target
+        Dataverse environment, including their types, steps, and images.
 
         This cmdlet wraps the ppds CLI tool.
-
-    .PARAMETER ConfigPath
-        Path to the registrations.json file to compare.
 
     .PARAMETER Profile
         Authentication profile name. If not specified, uses the active profile.
@@ -20,28 +16,36 @@ function Get-DataversePluginDrift {
         Environment URL, friendly name, unique name, or ID.
         Overrides the profile's default environment if specified.
 
+    .PARAMETER Assembly
+        Filter by assembly name (classic DLL plugins).
+
+    .PARAMETER Package
+        Filter by package name or unique name (NuGet plugin packages).
+
     .PARAMETER PassThru
-        Return drift results as structured objects.
+        Return results as structured objects instead of displaying formatted output.
 
     .EXAMPLE
-        Get-DataversePluginDrift -ConfigPath "./registrations.json"
+        Get-DataversePlugins
 
-        Shows drift for all assemblies using the active profile.
+        Lists all registered plugins using the active profile.
 
     .EXAMPLE
-        Get-DataversePluginDrift -ConfigPath "./registrations.json" -Profile "dev" -PassThru
+        Get-DataversePlugins -Profile "dev" -Assembly "MyPlugins"
 
-        Returns drift as objects for programmatic use.
+        Lists plugins from a specific assembly.
+
+    .EXAMPLE
+        $plugins = Get-DataversePlugins -PassThru
+        $plugins.Assemblies | ForEach-Object { $_.Name }
+
+        Returns plugin data as objects for processing.
 
     .OUTPUTS
-        Text output by default. PSCustomObject with drift details if -PassThru is specified.
+        Text output by default. PSCustomObject with plugin details if -PassThru is specified.
     #>
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)]
-        [Alias('RegistrationFile')]
-        [string]$ConfigPath,
-
         [Parameter()]
         [string]$Profile,
 
@@ -49,21 +53,21 @@ function Get-DataversePluginDrift {
         [string]$Environment,
 
         [Parameter()]
+        [string]$Assembly,
+
+        [Parameter()]
+        [string]$Package,
+
+        [Parameter()]
         [switch]$PassThru
     )
-
-    # Validate config file exists
-    if (-not (Test-Path $ConfigPath)) {
-        throw "Configuration file not found: $ConfigPath"
-    }
 
     # Get the CLI tool
     $cliPath = Get-PpdsCli
 
     # Build arguments
     $cliArgs = @(
-        'plugins', 'diff'
-        '--config', (Resolve-Path $ConfigPath).Path
+        'plugins', 'list'
     )
 
     if ($Profile) {
@@ -76,6 +80,16 @@ function Get-DataversePluginDrift {
         $cliArgs += $Environment
     }
 
+    if ($Assembly) {
+        $cliArgs += '--assembly'
+        $cliArgs += $Assembly
+    }
+
+    if ($Package) {
+        $cliArgs += '--package'
+        $cliArgs += $Package
+    }
+
     if ($PassThru) {
         $cliArgs += '--json'
     }
@@ -85,23 +99,23 @@ function Get-DataversePluginDrift {
     # Execute CLI and capture output
     $output = & $cliPath @cliArgs 2>&1
 
-    # Check exit code (1 = drift detected, which is not an error for this cmdlet)
-    if ($LASTEXITCODE -gt 1) {
+    # Check exit code
+    if ($LASTEXITCODE -ne 0) {
         $errorMessage = $output | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] }
         if ($errorMessage) {
-            throw "Diff failed: $($errorMessage -join "`n")"
+            throw "List failed: $($errorMessage -join "`n")"
         }
-        throw "Diff failed with exit code $LASTEXITCODE"
+        throw "List failed with exit code $LASTEXITCODE"
     }
 
     if ($PassThru) {
         # Parse JSON output
-        $jsonOutput = $output | Where-Object { $_ -match '^\s*\[' } | Out-String
+        $jsonOutput = $output | Where-Object { $_ -match '^\s*\{' } | Out-String
         try {
             return $jsonOutput | ConvertFrom-Json
         }
         catch {
-            throw "Failed to parse diff output: $_"
+            throw "Failed to parse list output: $_"
         }
     }
     else {
@@ -116,11 +130,6 @@ function Get-DataversePluginDrift {
             else {
                 Write-Verbose $_
             }
-        }
-
-        # Return whether drift was detected
-        if ($LASTEXITCODE -eq 1) {
-            Write-Warning "Drift detected. Run with -PassThru for details."
         }
     }
 }

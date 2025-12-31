@@ -16,10 +16,20 @@ Describe "PPDS.Tools Module" -Tag 'Unit' {
     }
 
     Context "Exported Functions" {
+        # Auth commands
         It "Should export Connect-DataverseEnvironment" {
             Get-Command -Module PPDS.Tools -Name Connect-DataverseEnvironment | Should -Not -BeNullOrEmpty
         }
 
+        It "Should export Get-DataverseProfile" {
+            Get-Command -Module PPDS.Tools -Name Get-DataverseProfile | Should -Not -BeNullOrEmpty
+        }
+
+        It "Should export Get-DataverseProfiles" {
+            Get-Command -Module PPDS.Tools -Name Get-DataverseProfiles | Should -Not -BeNullOrEmpty
+        }
+
+        # Plugin commands
         It "Should export Get-DataversePluginRegistrations" {
             Get-Command -Module PPDS.Tools -Name Get-DataversePluginRegistrations | Should -Not -BeNullOrEmpty
         }
@@ -36,6 +46,11 @@ Describe "PPDS.Tools Module" -Tag 'Unit' {
             Get-Command -Module PPDS.Tools -Name Remove-DataverseOrphanedSteps | Should -Not -BeNullOrEmpty
         }
 
+        It "Should export Get-DataversePlugins" {
+            Get-Command -Module PPDS.Tools -Name Get-DataversePlugins | Should -Not -BeNullOrEmpty
+        }
+
+        # Migration commands
         It "Should export Export-DataverseData" {
             Get-Command -Module PPDS.Tools -Name Export-DataverseData | Should -Not -BeNullOrEmpty
         }
@@ -44,17 +59,23 @@ Describe "PPDS.Tools Module" -Tag 'Unit' {
             Get-Command -Module PPDS.Tools -Name Import-DataverseData | Should -Not -BeNullOrEmpty
         }
 
+        It "Should export Copy-DataverseData" {
+            Get-Command -Module PPDS.Tools -Name Copy-DataverseData | Should -Not -BeNullOrEmpty
+        }
+
         It "Should export Get-DataverseDependencyGraph" {
             Get-Command -Module PPDS.Tools -Name Get-DataverseDependencyGraph | Should -Not -BeNullOrEmpty
         }
 
-        It "Should export Invoke-DataverseMigration" {
-            Get-Command -Module PPDS.Tools -Name Invoke-DataverseMigration | Should -Not -BeNullOrEmpty
+        It "Should export exactly 12 public functions" {
+            $commands = Get-Command -Module PPDS.Tools -CommandType Function
+            $commands.Count | Should -Be 12
         }
 
-        It "Should export exactly 9 public functions" {
-            $commands = Get-Command -Module PPDS.Tools
-            $commands.Count | Should -Be 9
+        It "Should have Invoke-DataverseMigration alias for Copy-DataverseData" {
+            $alias = Get-Alias Invoke-DataverseMigration -ErrorAction SilentlyContinue
+            $alias | Should -Not -BeNullOrEmpty
+            $alias.ReferencedCommand.Name | Should -Be 'Copy-DataverseData'
         }
     }
 
@@ -70,8 +91,6 @@ Describe "PPDS.Tools Module" -Tag 'Unit' {
         }
 
         It "Deploy-DataversePlugins should have synopsis" {
-            # Note: This function has a typed parameter that requires Microsoft.Xrm.Tooling.Connector
-            # which may not be available in CI. We test that the function exists and is documented.
             $cmd = Get-Command -Module PPDS.Tools -Name Deploy-DataversePlugins -ErrorAction SilentlyContinue
             $cmd | Should -Not -BeNullOrEmpty
             $cmd.Definition | Should -Match '\.SYNOPSIS'

@@ -6,25 +6,24 @@ function Import-DataverseData {
     .DESCRIPTION
         Imports data into Dataverse from a previously exported data file.
         Handles dependency ordering, circular references, and many-to-many relationships.
-        Supports bypass of plugins and flows for performance.
 
-        This cmdlet wraps the ppds-migrate CLI tool.
+        This cmdlet wraps the ppds CLI tool.
 
-    .PARAMETER Connection
-        Dataverse connection string. Supports multiple authentication types:
-        - AuthType=ClientSecret;Url=https://org.crm.dynamics.com;ClientId=xxx;ClientSecret=xxx
-        - AuthType=OAuth;Url=https://org.crm.dynamics.com;...
+    .PARAMETER Profile
+        Authentication profile name. If not specified, uses the active profile.
+        Create profiles with Connect-DataverseEnvironment or 'ppds auth create'.
+
+    .PARAMETER Environment
+        Environment URL, friendly name, unique name, or ID.
+        Overrides the profile's default environment if specified.
 
     .PARAMETER DataPath
         Path to the data.zip file containing exported data.
 
-    .PARAMETER BatchSize
-        Records per batch for ExecuteMultiple requests.
-        Default: 1000
-
     .PARAMETER BypassPlugins
         Bypass custom plugin execution during import.
-        Requires appropriate privileges in the target environment.
+        Valid values: sync, async, all
+        Requires prvBypassCustomBusinessLogic privilege.
 
     .PARAMETER BypassFlows
         Bypass Power Automate flow triggers during import.
@@ -39,43 +38,55 @@ function Import-DataverseData {
         - Update: Update existing records only (fails if not exists)
         - Upsert: Create or update as needed (default)
 
+    .PARAMETER UserMappingPath
+        Path to user mapping XML file for remapping user references.
+        Use New-DataverseUserMapping to generate this file.
+
+    .PARAMETER StripOwnerFields
+        Strip ownership fields (ownerid, createdby, modifiedby) allowing
+        Dataverse to assign the current user.
+
+    .PARAMETER SkipMissingColumns
+        Skip columns that exist in exported data but not in target environment.
+        Prevents schema mismatch errors when environments differ.
+
     .PARAMETER PassThru
         Return an import result object with statistics.
 
     .EXAMPLE
-        Import-DataverseData `
-            -Connection "AuthType=ClientSecret;Url=https://org.crm.dynamics.com;ClientId=xxx;ClientSecret=xxx" `
-            -DataPath "./data.zip"
+        Import-DataverseData -DataPath "./data.zip"
 
-        Imports data using default settings (Upsert mode, 1000 batch size).
+        Imports data using the active profile with default settings (Upsert mode).
 
     .EXAMPLE
-        Import-DataverseData `
-            -Connection $connString `
-            -DataPath "./data.zip" `
-            -BatchSize 500 `
-            -BypassPlugins `
-            -ContinueOnError `
-            -Verbose
+        Import-DataverseData -Profile "prod" -DataPath "./data.zip" `
+            -BypassPlugins all -BypassFlows -ContinueOnError
 
-        Imports with smaller batches, bypasses plugins, and continues on errors.
+        Imports with all plugins and flows bypassed, continuing on errors.
+
+    .EXAMPLE
+        Import-DataverseData -DataPath "./data.zip" -UserMappingPath "./usermapping.xml" `
+            -StripOwnerFields -SkipMissingColumns
+
+        Imports with user remapping and flexible schema handling.
 
     .OUTPUTS
         None by default. PSCustomObject with import statistics if -PassThru is specified.
     #>
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)]
-        [string]$Connection,
+        [Parameter()]
+        [string]$Profile,
+
+        [Parameter()]
+        [string]$Environment,
 
         [Parameter(Mandatory)]
         [string]$DataPath,
 
         [Parameter()]
-        [int]$BatchSize = 1000,
-
-        [Parameter()]
-        [switch]$BypassPlugins,
+        [ValidateSet('sync', 'async', 'all')]
+        [string]$BypassPlugins,
 
         [Parameter()]
         [switch]$BypassFlows,
@@ -88,6 +99,15 @@ function Import-DataverseData {
         [string]$Mode = 'Upsert',
 
         [Parameter()]
+        [string]$UserMappingPath,
+
+        [Parameter()]
+        [switch]$StripOwnerFields,
+
+        [Parameter()]
+        [switch]$SkipMissingColumns,
+
+        [Parameter()]
         [switch]$PassThru
     )
 
@@ -96,24 +116,34 @@ function Import-DataverseData {
         throw "Data file not found: $DataPath"
     }
 
+    # Validate user mapping file if specified
+    if ($UserMappingPath -and -not (Test-Path $UserMappingPath)) {
+        throw "User mapping file not found: $UserMappingPath"
+    }
+
     # Get the CLI tool
-    $cliPath = Get-PpdsMigrateCli
+    $cliPath = Get-PpdsCli
 
     # Build arguments
     $cliArgs = @(
-        'import'
-        '--connection', $Connection
+        'data', 'import'
         '--data', (Resolve-Path $DataPath).Path
         '--json'  # Always use JSON for progress parsing
     )
 
-    if ($BatchSize -ne 1000) {
-        $cliArgs += '--batch-size'
-        $cliArgs += $BatchSize
+    if ($Profile) {
+        $cliArgs += '--profile'
+        $cliArgs += $Profile
+    }
+
+    if ($Environment) {
+        $cliArgs += '--environment'
+        $cliArgs += $Environment
     }
 
     if ($BypassPlugins) {
         $cliArgs += '--bypass-plugins'
+        $cliArgs += $BypassPlugins
     }
 
     if ($BypassFlows) {
@@ -129,14 +159,20 @@ function Import-DataverseData {
         $cliArgs += $Mode
     }
 
-    # Build redacted args for logging (protect credentials)
-    $redactedArgs = $cliArgs.Clone()
-    for ($i = 0; $i -lt $redactedArgs.Count; $i++) {
-        if ($redactedArgs[$i] -eq '--connection' -and ($i + 1) -lt $redactedArgs.Count) {
-            $redactedArgs[$i + 1] = Get-RedactedConnectionString $redactedArgs[$i + 1]
-        }
+    if ($UserMappingPath) {
+        $cliArgs += '--user-mapping'
+        $cliArgs += (Resolve-Path $UserMappingPath).Path
     }
-    Write-Verbose "Executing: $cliPath $($redactedArgs -join ' ')"
+
+    if ($StripOwnerFields) {
+        $cliArgs += '--strip-owner-fields'
+    }
+
+    if ($SkipMissingColumns) {
+        $cliArgs += '--skip-missing-columns'
+    }
+
+    Write-Verbose "Executing: $cliPath $($cliArgs -join ' ')"
 
     # Execute CLI and parse progress
     $importResult = [PSCustomObject]@{

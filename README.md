@@ -9,17 +9,17 @@ PowerShell module for Dataverse plugin deployment, data migration, and CI/CD aut
 ## Installation
 
 ```powershell
-Install-Module PPDS.Tools -Scope CurrentUser
+# Install the PowerShell module
+Install-Module PPDS.Tools -Scope CurrentUser -AllowPrerelease
+
+# Install the CLI tool (required)
+dotnet tool install --global PPDS.Cli
 ```
 
-**Requirements:** PowerShell 7.0+
-
-## Compatibility
-
-| PPDS.Tools | Requires |
-|------------|----------|
-| 1.1.x | PowerShell 7.0+ |
-| 1.2.x | PowerShell 7.0+, [PPDS.Migration.Cli](https://github.com/joshsmithxrm/ppds-sdk) >= 1.0.0 (for migration cmdlets) |
+**Requirements:**
+- PowerShell 7.0+
+- .NET 8.0+ SDK (for CLI tool)
+- PPDS.Cli dotnet tool
 
 ---
 
@@ -27,151 +27,199 @@ Install-Module PPDS.Tools -Scope CurrentUser
 
 | Cmdlet | Description |
 |--------|-------------|
+| **Authentication** | |
+| `Connect-DataverseEnvironment` | Create authentication profile |
+| `Get-DataverseProfile` | Get active profile |
+| `Get-DataverseProfiles` | List all profiles |
 | **Plugin Deployment** | |
-| `Connect-DataverseEnvironment` | Establish authenticated connection |
 | `Get-DataversePluginRegistrations` | Extract registrations from assemblies |
 | `Deploy-DataversePlugins` | Deploy assemblies and register steps |
 | `Get-DataversePluginDrift` | Detect configuration drift |
 | `Remove-DataverseOrphanedSteps` | Clean up orphaned steps |
+| `Get-DataversePlugins` | List registered plugins |
 | **Data Migration** | |
 | `Export-DataverseData` | Export data to ZIP file |
 | `Import-DataverseData` | Import data from ZIP file |
+| `Copy-DataverseData` | Copy data between environments |
 | `Get-DataverseDependencyGraph` | Analyze schema dependencies |
-| `Invoke-DataverseMigration` | Full environment-to-environment migration |
 
 ---
 
-## Plugin Deployment
+## Quick Start
 
-### Connect to Dataverse
+### 1. Create an Authentication Profile
 
 ```powershell
-# Interactive browser login
-$conn = Connect-DataverseEnvironment `
-    -EnvironmentUrl "https://myorg.crm.dynamics.com" `
-    -Interactive
+# Interactive login (device code)
+Connect-DataverseEnvironment -DeviceCode -Name "dev" -Environment "https://myorg.crm.dynamics.com"
 
-# Service principal
-$conn = Connect-DataverseEnvironment `
-    -EnvironmentUrl "https://myorg.crm.dynamics.com" `
-    -ClientId $clientId `
-    -ClientSecret $clientSecret `
-    -TenantId $tenantId
+# Service principal (for CI/CD)
+Connect-DataverseEnvironment `
+    -Name "ci" `
+    -ApplicationId $env:CLIENT_ID `
+    -ClientSecret $env:CLIENT_SECRET `
+    -TenantId $env:TENANT_ID `
+    -Environment "https://myorg.crm.dynamics.com"
 ```
 
-### Extract and Deploy Plugins
+### 2. Deploy Plugins
 
 ```powershell
 # Extract registrations from compiled assembly
-Get-DataversePluginRegistrations `
-    -AssemblyPath "./bin/Release/net462/MyPlugins.dll" `
-    -OutputPath "./registrations.json"
+Get-DataversePluginRegistrations -InputPath "./bin/Release/net462/MyPlugins.dll"
 
-# Deploy to Dataverse
-Deploy-DataversePlugins `
-    -RegistrationFile "./registrations.json" `
-    -Connection $conn
+# Deploy to Dataverse (uses active profile)
+Deploy-DataversePlugins -ConfigPath "./registrations.json"
+
+# Or specify a profile
+Deploy-DataversePlugins -ConfigPath "./registrations.json" -Profile "dev"
 
 # Check for drift
-Get-DataversePluginDrift `
-    -RegistrationFile "./registrations.json" `
-    -Connection $conn
+Get-DataversePluginDrift -ConfigPath "./registrations.json"
 ```
 
----
-
-## Data Migration
-
-Migration cmdlets wrap the [`ppds-migrate`](https://github.com/joshsmithxrm/ppds-sdk) CLI tool.
+### 3. Migrate Data
 
 ```powershell
 # Export data
-Export-DataverseData `
-    -Connection "AuthType=ClientSecret;Url=https://org.crm.dynamics.com;..." `
-    -SchemaPath "./schema.xml" `
-    -OutputPath "./data.zip"
+Export-DataverseData -SchemaPath "./schema.xml" -OutputPath "./data.zip"
 
 # Import data
-Import-DataverseData `
-    -Connection "AuthType=ClientSecret;Url=https://target.crm.dynamics.com;..." `
-    -DataPath "./data.zip" `
-    -BypassPlugins
+Import-DataverseData -DataPath "./data.zip" -BypassPlugins all
 
-# Full migration
-Invoke-DataverseMigration `
-    -SourceConnection "AuthType=ClientSecret;Url=https://source.crm.dynamics.com;..." `
-    -TargetConnection "AuthType=ClientSecret;Url=https://target.crm.dynamics.com;..." `
+# Or copy directly between environments
+Copy-DataverseData `
+    -SourceEnvironment "dev" `
+    -TargetEnvironment "test" `
     -SchemaPath "./schema.xml"
 ```
 
 ---
 
-## Security
+## Authentication
 
-### Connection String Handling
+All cmdlets use profile-based authentication managed by the `ppds` CLI.
 
-Connection strings contain sensitive credentials. This module provides built-in protection:
-
-**Automatic Redaction:** Verbose output automatically redacts sensitive values:
+### Creating Profiles
 
 ```powershell
-Export-DataverseData -Connection $conn -SchemaPath ./schema.xml -OutputPath ./data.zip -Verbose
-# VERBOSE: Executing: ppds-migrate export --connection "AuthType=ClientSecret;Url=https://org.crm.dynamics.com;ClientId=xxx;ClientSecret=***REDACTED***"
+# Interactive (device code flow)
+Connect-DataverseEnvironment -DeviceCode -Name "dev"
+
+# Service principal with client secret
+Connect-DataverseEnvironment `
+    -Name "prod" `
+    -ApplicationId "00000000-0000-0000-0000-000000000000" `
+    -ClientSecret "your-secret" `
+    -TenantId "00000000-0000-0000-0000-000000000000" `
+    -Environment "https://org.crm.dynamics.com"
+
+# Managed identity (Azure)
+Connect-DataverseEnvironment -ManagedIdentity -Name "azure"
+
+# GitHub Actions OIDC
+Connect-DataverseEnvironment -GitHubFederated -ApplicationId $appId -TenantId $tenantId -Name "gh"
 ```
 
-Sensitive keys redacted: `ClientSecret`, `Password`, `Secret`, `Key`, `Pwd`, `Token`, `ApiKey`, `AccessToken`, `RefreshToken`, `SharedAccessKey`, `AccountKey`, `Credential`
+### Using Profiles
 
-### Best Practices
+```powershell
+# Use active profile (default)
+Deploy-DataversePlugins -ConfigPath "./registrations.json"
 
-1. **Use Environment Variables** (recommended):
+# Specify profile
+Deploy-DataversePlugins -ConfigPath "./registrations.json" -Profile "dev"
 
-   ```powershell
-   # Set once per session - cmdlets use these automatically
-   $env:PPDS_CONNECTION = "AuthType=ClientSecret;Url=https://org.crm.dynamics.com;ClientId=xxx;ClientSecret=xxx"
-   $env:PPDS_SOURCE_CONNECTION = "..."  # For Invoke-DataverseMigration
-   $env:PPDS_TARGET_CONNECTION = "..."  # For Invoke-DataverseMigration
+# Override environment
+Export-DataverseData -SchemaPath "./schema.xml" -OutputPath "./data.zip" -Environment "https://test.crm.dynamics.com"
+```
 
-   # No -Connection parameter needed
-   Export-DataverseData -SchemaPath ./schema.xml -OutputPath ./data.zip
-   ```
+### Managing Profiles
 
-2. **Use SecretManagement module** for stored credentials:
+```powershell
+# List profiles
+Get-DataverseProfiles
 
-   ```powershell
-   Install-Module Microsoft.PowerShell.SecretManagement
-   Install-Module Microsoft.PowerShell.SecretStore
+# Get active profile
+Get-DataverseProfile
 
-   # Store securely
-   Set-Secret -Name "DataverseConnection" -Secret "AuthType=ClientSecret;..."
+# Switch profile (use CLI directly)
+ppds auth select dev
 
-   # Retrieve at runtime
-   $env:PPDS_CONNECTION = Get-Secret -Name "DataverseConnection" -AsPlainText
-   ```
-
-3. **CI/CD Pipelines** - Use pipeline secrets:
-
-   ```yaml
-   # GitHub Actions
-   - run: Export-DataverseData -SchemaPath ./schema.xml -OutputPath ./data.zip
-     env:
-       PPDS_CONNECTION: ${{ secrets.DATAVERSE_CONNECTION }}
-   ```
-
-4. **Never hardcode credentials** in scripts.
-
-### PowerShell-Specific Considerations
-
-| Concern | Mitigation |
-|---------|------------|
-| **Command History** | Use env vars; inline credentials are saved to PSReadLine history |
-| **Transcripts** | Verbose output is redacted; avoid `Start-Transcript` with inline credentials |
-| **Process Visibility** | Env vars are safer than command-line arguments |
+# Delete profile (use CLI directly)
+ppds auth delete prod
+```
 
 ---
 
-## Architecture Decisions
+## CI/CD Examples
 
-- [ADR-0001: CLI Wrapper Pattern](docs/adr/0001_CLI_WRAPPER_PATTERN.md) - Why migration cmdlets wrap the CLI
+### GitHub Actions
+
+```yaml
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # Required for OIDC
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup
+        run: |
+          dotnet tool install --global PPDS.Cli
+          Install-Module PPDS.Tools -Force -AllowPrerelease
+        shell: pwsh
+
+      - name: Authenticate
+        run: |
+          Connect-DataverseEnvironment `
+            -GitHubFederated `
+            -ApplicationId "${{ vars.AZURE_CLIENT_ID }}" `
+            -TenantId "${{ vars.AZURE_TENANT_ID }}" `
+            -Environment "${{ vars.DATAVERSE_URL }}" `
+            -Name "deploy"
+        shell: pwsh
+
+      - name: Deploy Plugins
+        run: |
+          Deploy-DataversePlugins -ConfigPath "./registrations.json" -Profile "deploy"
+        shell: pwsh
+```
+
+### Azure DevOps
+
+```yaml
+steps:
+  - task: PowerShell@2
+    inputs:
+      targetType: inline
+      script: |
+        dotnet tool install --global PPDS.Cli
+        Install-Module PPDS.Tools -Force -AllowPrerelease
+
+        Connect-DataverseEnvironment `
+          -ApplicationId "$(ClientId)" `
+          -ClientSecret "$(ClientSecret)" `
+          -TenantId "$(TenantId)" `
+          -Environment "$(DataverseUrl)" `
+          -Name "deploy"
+
+        Deploy-DataversePlugins -ConfigPath "./registrations.json"
+      pwsh: true
+```
+
+---
+
+## Architecture
+
+All cmdlets wrap the [`ppds`](https://github.com/joshsmithxrm/ppds-sdk) CLI tool. This provides:
+
+- **Single source of truth** - CLI is the implementation
+- **Consistent behavior** - Same code path as CLI users
+- **Automatic updates** - CLI improvements benefit PowerShell users
+
+See [ADR-0001: CLI Wrapper Pattern](docs/adr/0001_CLI_WRAPPER_PATTERN.md) for details.
 
 ---
 
@@ -179,7 +227,7 @@ Sensitive keys redacted: `ClientSecret`, `Password`, `Secret`, `Key`, `Pwd`, `To
 
 | Project | Description |
 |---------|-------------|
-| [ppds-sdk](https://github.com/joshsmithxrm/ppds-sdk) | NuGet packages and CLI tools |
+| [ppds-sdk](https://github.com/joshsmithxrm/ppds-sdk) | NuGet packages and CLI tool |
 | [power-platform-developer-suite](https://github.com/joshsmithxrm/power-platform-developer-suite) | VS Code extension |
 | [ppds-alm](https://github.com/joshsmithxrm/ppds-alm) | CI/CD pipeline templates |
 | [ppds-demo](https://github.com/joshsmithxrm/ppds-demo) | Reference implementation |
