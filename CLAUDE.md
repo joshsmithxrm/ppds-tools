@@ -1,6 +1,6 @@
 # CLAUDE.md - ppds-tools
 
-**PowerShell module for Dataverse plugin deployment, data migration, and CI/CD automation.**
+**PowerShell module for Dataverse plugin deployment and data migration.**
 
 **Part of the PPDS Ecosystem** - See `../CLAUDE.md` for cross-project context.
 
@@ -260,18 +260,20 @@ Describe 'Get-DataversePluginRegistrations' {
 
 | Consumer | How | Breaking Change Impact |
 |----------|-----|------------------------|
-| ppds-alm | Workflows call cmdlets | Must update workflow scripts |
-| ppds-demo | Scripts import module | Must update scripts |
+| PowerShell users | Import module for scripting | Must update scripts |
+| ppds-demo | Example scripts import module | Must update scripts |
+
+**Note:** ppds-alm uses CLI directly (not Tools). Tools is for users who prefer PowerShell syntax.
 
 ### Version Sync Rules
 
 | Rule | Details |
 |------|---------|
-| Major versions | Sync with ppds-alm when cmdlet signatures change |
+| Major versions | Independent (no ALM dependency) |
 | Minor/patch | Independent |
 | Pre-release format | `Prerelease = 'alphaN'` in `.psd1` manifest |
 
-### Breaking Changes Requiring Coordination
+### Breaking Changes
 
 - Changing exported cmdlet names
 - Removing or renaming mandatory parameters

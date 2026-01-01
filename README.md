@@ -4,7 +4,9 @@
 [![PowerShell Gallery](https://img.shields.io/powershellgallery/v/PPDS.Tools.svg)](https://www.powershellgallery.com/packages/PPDS.Tools/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-PowerShell module for Dataverse plugin deployment, data migration, and CI/CD automation. Part of the [Power Platform Developer Suite](https://github.com/joshsmithxrm/power-platform-developer-suite) ecosystem.
+PowerShell module for Dataverse plugin deployment and data migration. Part of the [Power Platform Developer Suite](https://github.com/joshsmithxrm/power-platform-developer-suite) ecosystem.
+
+> **Note:** For CI/CD automation, consider using [ppds-alm](https://github.com/joshsmithxrm/ppds-alm) templates which use the CLI directly. This module is for users who prefer PowerShell syntax.
 
 ## Installation
 
@@ -153,6 +155,8 @@ ppds auth delete prod
 ---
 
 ## CI/CD Examples
+
+> **Tip:** For production CI/CD, consider [ppds-alm](https://github.com/joshsmithxrm/ppds-alm) which provides reusable workflow templates using the CLI directly. The examples below show how to use PPDS.Tools if you prefer PowerShell syntax in custom pipelines.
 
 ### GitHub Actions
 
