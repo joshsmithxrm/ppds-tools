@@ -34,3 +34,6 @@ obj/
 .claude/settings.local.json
 *.local.json
 nul
+
+# Temp folder
+tmp/
