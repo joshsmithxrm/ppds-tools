@@ -231,10 +231,10 @@ See [ADR-0001: CLI Wrapper Pattern](docs/adr/0001_CLI_WRAPPER_PATTERN.md) for de
 
 | Project | Description |
 |---------|-------------|
-| [ppds-sdk](https://github.com/joshsmithxrm/ppds-sdk) | NuGet packages and CLI tool |
-| [power-platform-developer-suite](https://github.com/joshsmithxrm/power-platform-developer-suite) | VS Code extension |
+| [power-platform-developer-suite](https://github.com/joshsmithxrm/power-platform-developer-suite) | SDK + CLI + TUI + Extension + MCP |
 | [ppds-alm](https://github.com/joshsmithxrm/ppds-alm) | CI/CD pipeline templates |
 | [ppds-demo](https://github.com/joshsmithxrm/ppds-demo) | Reference implementation |
+| [ppds-orchestration](https://github.com/joshsmithxrm/ppds-orchestration) | Parallel Claude Code sessions |
 
 ## License
 
