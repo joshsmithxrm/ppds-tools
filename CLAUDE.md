@@ -1,306 +1,50 @@
-# CLAUDE.md - ppds-tools
+# PPDS Tools
 
-**PowerShell module for Dataverse plugin deployment and data migration.**
+PowerShell module for Dataverse plugin deployment and data migration. All cmdlets wrap the `ppds` CLI.
 
-**Part of the PPDS Ecosystem** - See `../CLAUDE.md` for cross-project context.
+## NEVER
 
-**Consumption guidance:** See [CONSUMPTION_PATTERNS.md](../docs/CONSUMPTION_PATTERNS.md) for when consumers should use library vs CLI vs Tools.
+- Use `powershell.exe` - use `pwsh` (PowerShell 7+ required)
+- Skip `[CmdletBinding()]` on public functions - breaks common parameters
+- Use `Write-Host` for output - breaks pipeline; use `Write-Output`
+- Skip Pester tests for new cmdlets - all public cmdlets must have tests
+- Use non-approved verbs - PowerShell standards require approved verbs
 
-**Architecture:** All cmdlets wrap the `ppds` CLI tool. See [ADR-0001: CLI Wrapper Pattern](docs/adr/0001_CLI_WRAPPER_PATTERN.md).
+## ALWAYS
 
----
+- Cmdlet naming: `Verb-Dataverse<Noun>` - consistent naming
+- `[CmdletBinding()]` on all public functions - enables common parameters
+- `[Parameter(Mandatory)]` for required params - clear contract
+- Return objects, not formatted strings - pipeline compatibility
+- Update `FunctionsToExport` in `.psd1` - new cmdlets must be exported
 
-## 🚫 NEVER
+## Cmdlets
 
-| Rule | Why |
-|------|-----|
-| Use `powershell.exe` to invoke scripts | Use `pwsh` - module requires PowerShell 7+ |
-| Skip `[CmdletBinding()]` on public functions | Breaks common parameters (-Verbose, -Debug, etc.) |
-| Use `Write-Host` for output | Breaks pipeline; use `Write-Output` or return objects |
-| Hardcode environment URLs | Breaks portability; always accept as parameter |
-| Skip Pester tests for new cmdlets | All public cmdlets must have tests |
-| Use non-approved verbs | PowerShell standards require approved verbs |
+| Cmdlet | CLI Command |
+|--------|-------------|
+| `Connect-DataverseEnvironment` | `ppds auth create` |
+| `Get-DataverseProfile` | `ppds auth who` |
+| `Deploy-DataversePlugins` | `ppds plugins deploy` |
+| `Get-DataversePluginDrift` | `ppds plugins diff` |
+| `Export-DataverseData` | `ppds data export` |
+| `Import-DataverseData` | `ppds data import` |
 
----
+## Commands
 
-## ✅ ALWAYS
+| Command | Purpose |
+|---------|---------|
+| `Import-Module ./src/PPDS.Tools -Force` | Load for development |
+| `Invoke-Pester ./tests -Output Detailed` | Run tests |
+| `Test-ModuleManifest ./src/PPDS.Tools/PPDS.Tools.psd1` | Validate manifest |
 
-| Rule | Why |
-|------|-----|
-| Cmdlet naming: `Verb-Dataverse<Noun>` | Consistent naming across module |
-| `[CmdletBinding()]` on all public functions | Enables common parameters |
-| `[Parameter(Mandatory)]` for required params | Clear contract, better errors |
-| Return objects, not formatted strings | Pipeline compatibility |
-| Mock Dataverse calls in tests | Unit tests shouldn't require live environment |
-| Update `FunctionsToExport` in `.psd1` | New cmdlets must be exported |
+## Key Files
 
----
+- `src/PPDS.Tools/PPDS.Tools.psd1` - Module manifest (version, exports)
+- `src/PPDS.Tools/Public/` - Exported cmdlets
+- `tests/` - Pester 5 tests
+- `docs/adr/0001_CLI_WRAPPER_PATTERN.md` - Why we wrap CLI
 
-## 💻 Tech Stack
+## See Also
 
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| PowerShell | 7.0+ | Required runtime |
-| Pester | 5.0+ | Testing framework |
-| PowerShell Gallery | - | Module distribution |
-
----
-
-## 📁 Project Structure
-
-```
-ppds-tools/
-├── src/
-│   └── PPDS.Tools/
-│       ├── PPDS.Tools.psd1       # Module manifest
-│       ├── PPDS.Tools.psm1       # Root module
-│       ├── Public/               # Exported cmdlets (12 total)
-│       │   ├── Auth/
-│       │   │   ├── Connect-DataverseEnvironment.ps1
-│       │   │   ├── Get-DataverseProfile.ps1
-│       │   │   └── Get-DataverseProfiles.ps1
-│       │   ├── Plugins/
-│       │   │   ├── Get-DataversePluginRegistrations.ps1
-│       │   │   ├── Deploy-DataversePlugins.ps1
-│       │   │   ├── Get-DataversePluginDrift.ps1
-│       │   │   ├── Remove-DataverseOrphanedSteps.ps1
-│       │   │   └── Get-DataversePlugins.ps1
-│       │   └── Migration/
-│       │       ├── Export-DataverseData.ps1
-│       │       ├── Import-DataverseData.ps1
-│       │       ├── Copy-DataverseData.ps1
-│       │       └── Get-DataverseDependencyGraph.ps1
-│       ├── Private/              # Internal functions
-│       │   └── Get-PpdsCli.ps1   # CLI locator helper
-│       └── Schemas/
-│           └── plugin-registration.schema.json
-├── tests/
-│   └── PPDS.Tools.Tests/
-├── docs/
-│   └── adr/                      # Architecture Decision Records
-│       ├── 0001_CLI_WRAPPER_PATTERN.md
-│       └── 0002_PROFILE_BASED_AUTH.md
-├── .github/workflows/
-│   ├── test.yml                  # CI tests
-│   └── publish-psgallery.yml     # Release → PSGallery
-└── CHANGELOG.md
-```
-
----
-
-## 🛠️ Common Commands
-
-```powershell
-# Import module for development
-Import-Module ./src/PPDS.Tools -Force
-
-# Run tests
-Install-Module Pester -Force -Scope CurrentUser
-Invoke-Pester ./tests -Output Detailed
-
-# Validate manifest
-Test-ModuleManifest ./src/PPDS.Tools/PPDS.Tools.psd1
-
-# Check available commands
-Get-Command -Module PPDS.Tools
-```
-
----
-
-## 📛 Cmdlet Naming Convention
-
-All cmdlets follow the pattern: `Verb-Dataverse<Noun>`
-
-| Cmdlet | CLI Command | Purpose |
-|--------|-------------|---------|
-| **Authentication** | | |
-| `Connect-DataverseEnvironment` | `ppds auth create` | Create authentication profile |
-| `Get-DataverseProfile` | `ppds auth who` | Get active profile |
-| `Get-DataverseProfiles` | `ppds auth list` | List all profiles |
-| **Plugin Deployment** | | |
-| `Get-DataversePluginRegistrations` | `ppds plugins extract` | Extract registrations from assembly |
-| `Deploy-DataversePlugins` | `ppds plugins deploy` | Deploy plugins to environment |
-| `Get-DataversePluginDrift` | `ppds plugins diff` | Compare config vs environment |
-| `Remove-DataverseOrphanedSteps` | `ppds plugins clean` | Clean up orphaned steps |
-| `Get-DataversePlugins` | `ppds plugins list` | List registered plugins |
-| **Data Migration** | | |
-| `Export-DataverseData` | `ppds data export` | Export data to ZIP file |
-| `Import-DataverseData` | `ppds data import` | Import data from ZIP file |
-| `Copy-DataverseData` | `ppds data copy` | Copy data between environments |
-| `Get-DataverseDependencyGraph` | `ppds data analyze` | Analyze schema dependencies |
-
----
-
-## 🔄 Development Workflow
-
-### Adding a New Cmdlet
-
-1. Create file in `Public/[Category]/Verb-DataverseNoun.ps1`
-2. Add function name to `FunctionsToExport` in `.psd1`
-3. Write Pester tests in `tests/`
-4. Update `CHANGELOG.md`
-
-### Module Structure Pattern
-
-```powershell
-# ✅ Correct - Full CmdletBinding with proper parameters
-function Verb-DataverseNoun {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string]$RequiredParam,
-
-        [Parameter()]
-        [switch]$OptionalSwitch
-    )
-
-    Write-Verbose "Starting Verb-DataverseNoun"
-    # Implementation
-}
-
-# ❌ Wrong - Missing CmdletBinding, poor parameter definition
-function Verb-DataverseNoun($RequiredParam, $OptionalSwitch) {
-    # Implementation
-}
-```
-
----
-
-## 📦 Version Management
-
-Version is in `src/PPDS.Tools/PPDS.Tools.psd1`:
-
-```powershell
-@{
-    ModuleVersion = '1.0.0'
-    # ...
-}
-```
-
----
-
-## 🔀 Git Branch & Merge Strategy
-
-| Branch | Purpose |
-|--------|---------|
-| `main` | Protected, always releasable |
-| `feature/*` | New features |
-| `fix/*` | Bug fixes |
-
-**Merge Strategy:** Squash merge to main
-
----
-
-## 🚀 Release Process
-
-1. Update version in `PPDS.Tools.psd1` (`ModuleVersion`)
-2. Update `CHANGELOG.md`
-3. Merge to `main`
-4. Create GitHub Release with tag `vX.Y.Z`
-5. `publish-psgallery.yml` workflow automatically publishes to PSGallery
-
-**Required Secret:** `PSGALLERY_API_KEY`
-
----
-
-## 🧪 Testing Patterns
-
-### Pester Test Structure
-
-```powershell
-# ✅ Correct - Proper Pester 5 structure with mocking
-Describe 'Get-DataversePluginRegistrations' {
-    BeforeAll {
-        Import-Module $PSScriptRoot/../src/PPDS.Tools -Force
-        Mock Get-PpdsCli { 'ppds' } -ModuleName PPDS.Tools
-    }
-
-    It 'Should require InputPath parameter' {
-        $cmd = Get-Command Get-DataversePluginRegistrations
-        $cmd.Parameters['InputPath'].Attributes |
-            Where-Object { $_ -is [System.Management.Automation.ParameterAttribute] } |
-            ForEach-Object { $_.Mandatory } | Should -Contain $true
-    }
-
-    It 'Should throw when input file does not exist' {
-        { Get-DataversePluginRegistrations -InputPath "./nonexistent.dll" } |
-            Should -Throw "*Input file not found*"
-    }
-}
-```
-
-### Testing Requirements
-
-- **Target 80% code coverage**
-- Unit tests for all public cmdlets
-- Mock `Get-PpdsCli` in tests (no CLI or live environment required)
-- Test parameter validation, CLI argument building, and JSON output parsing
-- Run `Invoke-Pester ./tests -Output Detailed` before submitting PR
-
----
-
-## 🔗 Dependencies & Versioning
-
-### This Repo Produces
-
-| Package | Distribution |
-|---------|--------------|
-| PPDS.Tools | PowerShell Gallery |
-
-### Dependencies
-
-| Dependency | Type | Minimum | Purpose |
-|------------|------|---------|---------|
-| PPDS.Cli | dotnet tool | 1.0.0 | All cmdlets shell to unified CLI |
-| PowerShell | Runtime | 7.0 | Required runtime |
-
-**Note:** This module is a pure CLI wrapper. All functionality is delegated to the `ppds` CLI tool.
-
-### Consumed By
-
-| Consumer | How | Breaking Change Impact |
-|----------|-----|------------------------|
-| PowerShell users | Import module for scripting | Must update scripts |
-| ppds-demo | Example scripts import module | Must update scripts |
-
-**Note:** ppds-alm uses CLI directly (not Tools). Tools is for users who prefer PowerShell syntax.
-
-### Version Sync Rules
-
-| Rule | Details |
-|------|---------|
-| Major versions | Independent (no ALM dependency) |
-| Minor/patch | Independent |
-| Pre-release format | `Prerelease = 'alphaN'` in `.psd1` manifest |
-
-### Breaking Changes
-
-- Changing exported cmdlet names
-- Removing or renaming mandatory parameters
-- Changing output object structure
-- Changing authentication flow (profile-based since v1.2.0)
-
----
-
-## 📋 Key Files
-
-| File | Purpose |
-|------|---------|
-| `PPDS.Tools.psd1` | Module manifest (version, exports, metadata) |
-| `PPDS.Tools.psm1` | Root module (dot-sources Public/Private) |
-| `CHANGELOG.md` | Release notes |
-| `plugin-registration.schema.json` | JSON schema for registration files |
-| `docs/adr/0001_CLI_WRAPPER_PATTERN.md` | Architecture: why we wrap CLI |
-| `docs/adr/0002_PROFILE_BASED_AUTH.md` | Architecture: profile-based auth |
-
----
-
-## ⚖️ Decision Presentation
-
-When presenting choices or asking questions:
-1. **Lead with your recommendation** and rationale
-2. **List alternatives considered** and why they're not preferred
-3. **Ask for confirmation**, not open-ended input
-
-❌ "What testing approach should we use?"
-✅ "I recommend X because Y. Alternatives considered: A (rejected because B), C (rejected because D). Do you agree?"
+- `Get-Command -Module PPDS.Tools` - List all cmdlets
+- `docs/adr/` - Architecture Decision Records
