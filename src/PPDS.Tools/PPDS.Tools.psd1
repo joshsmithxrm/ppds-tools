@@ -43,7 +43,7 @@
     # Private data for PowerShell Gallery
     PrivateData = @{
         PSData = @{
-            Prerelease = 'alpha2'
+            Prerelease = 'alpha3'
             Tags = @(
                 'dataverse',
                 'dynamics365',
@@ -58,7 +58,17 @@
             LicenseUri = 'https://github.com/joshsmithxrm/ppds-tools/blob/main/LICENSE'
             ProjectUri = 'https://github.com/joshsmithxrm/ppds-tools'
             ReleaseNotes = @'
-## v1.2.0-alpha2 - CLI Wrapper Refactor
+## v1.2.0-alpha3 - CLI Contract Repairs (prerelease)
+
+- Redact credential values from wrapper diagnostics; never log assembled auth arguments.
+- Use current CLI options, complete JSON documents and plugin success envelopes.
+- Parse migration progress/completion from stderr and preserve all failure codes.
+- Keep interactive console prompts, relative paths, drift warnings and dry-run behavior.
+- Validate wrappers against PPDS.Cli 1.4.1 with synthetic offline contract tests.
+
+The 1.2 API remains prerelease. Stable 1.1.0 uses the earlier native implementation.
+
+Inherited alpha2 API changes:
 
 BREAKING CHANGES:
 - All cmdlets now wrap the ppds CLI tool (requires PPDS.Cli dotnet tool)

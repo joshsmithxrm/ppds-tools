@@ -56,66 +56,6 @@ function Get-DataverseDependencyGraph {
         throw "Schema file not found: $SchemaPath"
     }
 
-    # Get the CLI tool
-    $cliPath = Get-PpdsCli
-
-    # Build arguments
-    $cliArgs = @(
-        'data', 'analyze'
-        '--schema', (Resolve-Path $SchemaPath).Path
-        '--json'
-    )
-
-    Write-Verbose "Executing: $cliPath $($cliArgs -join ' ')"
-
-    # Execute CLI and capture output
-    $output = & $cliPath @cliArgs 2>&1
-
-    # Check exit code
-    if ($LASTEXITCODE -ne 0) {
-        $errorMessage = $output | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] }
-        if ($errorMessage) {
-            throw "Analysis failed: $($errorMessage -join "`n")"
-        }
-        throw "Analysis failed with exit code $LASTEXITCODE"
-    }
-
-    # Filter to just JSON output (skip any stderr messages)
-    $jsonOutput = $output | Where-Object { $_ -notmatch '^\s*$' -and $_ -match '^\s*[\{\[]' } | Out-String
-
-    if (-not $jsonOutput) {
-        # If no JSON found, try the raw output
-        $jsonOutput = $output | Out-String
-    }
-
-    if ($AsJson) {
-        return $jsonOutput.Trim()
-    }
-
-    # Parse JSON and return object
-    try {
-        $data = $jsonOutput | ConvertFrom-Json
-
-        # Build a more PowerShell-friendly object
-        return [PSCustomObject]@{
-            EntityCount            = $data.entityCount
-            DependencyCount        = $data.dependencyCount
-            CircularReferenceCount = $data.circularReferenceCount
-            Tiers                  = @(
-                $data.tiers | ForEach-Object {
-                    [PSCustomObject]@{
-                        Tier       = $_.tier
-                        Entities   = $_.entities
-                        HasCircular = [bool]$_.hasCircular
-                    }
-                }
-            )
-            DeferredFields         = $data.deferredFields
-            ManyToManyRelationships = $data.manyToManyRelationships
-            Note                   = $data.note
-        }
-    }
-    catch {
-        throw "Failed to parse analysis output: $_`nOutput: $jsonOutput"
-    }
+    $cliArgs = @('data', 'analyze', '--schema', (Resolve-Path $SchemaPath).Path)
+    return Invoke-PpdsCli -Arguments $cliArgs -Json -AsJson:$AsJson
 }

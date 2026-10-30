@@ -26,7 +26,7 @@ This led to maintenance burden and feature parity issues.
 ```powershell
 # All cmdlets shell out to the CLI
 $cliPath = Get-PpdsCli
-& $cliPath plugins deploy --config $config --profile $profile --json
+& $cliPath plugins deploy --config $config --profile $profile --output-format Json
 ```
 
 ### Cmdlet-to-CLI Mapping
@@ -51,7 +51,7 @@ $cliPath = Get-PpdsCli
 ### Positive
 
 - **Single source of truth** - CLI is the implementation, PowerShell is an interface
-- **Feature parity guaranteed** - CLI updates automatically benefit PowerShell users
+- **Shared implementation** - CLI fixes benefit wrappers when argument and output contracts remain compatible
 - **Reduced maintenance** - Fix bugs once in CLI, not twice
 - **Clean process boundary** - No .NET assembly loading conflicts in PowerShell
 - **Simpler dependency** - CLI is a single tool install
@@ -66,8 +66,9 @@ $cliPath = Get-PpdsCli
 ### Mitigations
 
 - `Get-PpdsCli` helper auto-detects or offers to install the CLI
-- Exit codes are well-defined (0=success, 1=partial, 2=failure)
-- JSON output includes error details for parsing
+- Reject nonzero exit codes; plugin diff accepts exit 1 only with a successful JSON envelope
+- Parse whole JSON documents/envelopes separately from migration stderr progress
+- Test exact packaged CLI contracts; see [compatibility and testing](../CLI_COMPATIBILITY.md)
 - PowerShell adds value through:
   - Parameter validation and transformation
   - `Write-Progress` integration
@@ -99,7 +100,7 @@ $response = Invoke-RestMethod -Uri "$env/api/data/v9.2/pluginassemblies" -Header
 
 ## Migration from v1.x
 
-v2.0 is a breaking change from v1.x:
+The 1.2 prerelease API is a breaking change from stable 1.1.0:
 - `DataverseConnection` class removed
 - `-Connection` parameters replaced with `-Profile` and `-Environment`
 - All cmdlets now require the `ppds` CLI tool
