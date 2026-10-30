@@ -149,16 +149,13 @@ function Copy-DataverseData {
         throw "User mapping file not found: $UserMappingPath"
     }
 
-    # Get the CLI tool
-    $cliPath = Get-PpdsCli
-
     # Build arguments
     $cliArgs = @(
         'data', 'copy'
         '--schema', (Resolve-Path $SchemaPath).Path
         '--source-env', $SourceEnvironment
         '--target-env', $TargetEnvironment
-        '--json'  # Always use JSON for progress parsing
+        '--output-format', 'Json'
     )
 
     if ($SourceProfile) {
@@ -212,132 +209,8 @@ function Copy-DataverseData {
         $cliArgs += (Resolve-Path $UserMappingPath).Path
     }
 
-    Write-Verbose "Executing: $cliPath $($cliArgs -join ' ')"
-
-    # Execute CLI and parse progress
-    $copyResult = [PSCustomObject]@{
-        RecordsProcessed = 0
-        RecordsFailed    = 0
-        Duration         = [TimeSpan]::Zero
-    }
-    $errorOutput = @()
-    $currentPhase = 'starting'
-
-    & $cliPath @cliArgs 2>&1 | ForEach-Object {
-        $line = $_
-
-        # Check if it's a JSON progress line
-        if ($line -match '^\s*\{') {
-            try {
-                $progress = $line | ConvertFrom-Json
-
-                switch ($progress.phase) {
-                    'analyzing' {
-                        Write-Verbose $progress.message
-                    }
-                    'export' {
-                        if ($currentPhase -ne 'export') {
-                            $currentPhase = 'export'
-                            Write-Verbose "Starting export phase..."
-                        }
-
-                        if ($progress.entity -and $progress.total -gt 0) {
-                            $percent = [math]::Min(100, [math]::Round(($progress.current / $progress.total) * 100))
-                            $status = "$($progress.current)/$($progress.total)"
-                            if ($progress.rps) {
-                                $status += " @ $([math]::Round($progress.rps, 1)) rps"
-                            }
-                            Write-Progress -Activity "Exporting $($progress.entity)" `
-                                -PercentComplete $percent `
-                                -Status $status `
-                                -Id 1
-                        }
-                        elseif ($progress.message) {
-                            Write-Verbose $progress.message
-                        }
-                    }
-                    'import' {
-                        if ($currentPhase -ne 'import') {
-                            $currentPhase = 'import'
-                            Write-Progress -Activity "Export complete" -Completed -Id 1
-                            Write-Verbose "Starting import phase..."
-                        }
-
-                        if ($progress.entity -and $progress.total -gt 0) {
-                            $percent = [math]::Min(100, [math]::Round(($progress.current / $progress.total) * 100))
-                            $status = "$($progress.current)/$($progress.total)"
-                            if ($progress.rps) {
-                                $status += " @ $([math]::Round($progress.rps, 1)) rps"
-                            }
-                            Write-Progress -Activity "Importing $($progress.entity)" `
-                                -PercentComplete $percent `
-                                -Status $status `
-                                -Id 2
-                        }
-                        elseif ($progress.message) {
-                            Write-Verbose $progress.message
-                        }
-                    }
-                    'deferred' {
-                        if ($progress.entity -and $progress.field) {
-                            $percent = [math]::Min(100, [math]::Round(($progress.current / $progress.total) * 100))
-                            Write-Progress -Activity "Updating deferred: $($progress.entity).$($progress.field)" `
-                                -PercentComplete $percent `
-                                -Status "$($progress.current)/$($progress.total)" `
-                                -Id 2
-                        }
-                    }
-                    'complete' {
-                        Write-Progress -Activity "Copy complete" -Completed -Id 1
-                        Write-Progress -Activity "Copy complete" -Completed -Id 2
-                        $copyResult.RecordsProcessed = $progress.recordsProcessed
-                        $copyResult.RecordsFailed = $progress.errors
-                        if ($progress.duration) {
-                            $copyResult.Duration = [TimeSpan]::Parse($progress.duration)
-                        }
-                        Write-Verbose "Completed in $($progress.duration). Records: $($progress.recordsProcessed), Errors: $($progress.errors)"
-                    }
-                    'error' {
-                        $errorOutput += $progress.message
-                    }
-                }
-            }
-            catch {
-                # Not valid JSON, treat as regular output
-                Write-Verbose $line
-            }
-        }
-        else {
-            # Regular output
-            if ($line -is [System.Management.Automation.ErrorRecord]) {
-                $errorOutput += $line.ToString()
-            }
-            else {
-                Write-Verbose $line
-            }
-        }
-    }
-
-    # Check exit code
-    if ($LASTEXITCODE -eq 2) {
-        # Complete failure
-        $errorMessage = if ($errorOutput.Count -gt 0) {
-            $errorOutput -join "`n"
-        }
-        else {
-            "Copy failed with exit code $LASTEXITCODE"
-        }
-        throw $errorMessage
-    }
-    elseif ($LASTEXITCODE -eq 1) {
-        # Partial success
-        Write-Warning "Copy completed with some failures. $($copyResult.RecordsFailed) records failed."
-    }
-
-    Write-Progress -Activity "Copy" -Completed -Id 1
-    Write-Progress -Activity "Copy" -Completed -Id 2
-
+    $result = Invoke-PpdsMigration -Arguments $cliArgs
     if ($PassThru) {
-        return $copyResult
+        return $result
     }
 }

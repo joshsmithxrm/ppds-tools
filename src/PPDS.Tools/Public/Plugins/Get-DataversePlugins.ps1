@@ -62,9 +62,6 @@ function Get-DataversePlugins {
         [switch]$PassThru
     )
 
-    # Get the CLI tool
-    $cliPath = Get-PpdsCli
-
     # Build arguments
     $cliArgs = @(
         'plugins', 'list'
@@ -90,46 +87,8 @@ function Get-DataversePlugins {
         $cliArgs += $Package
     }
 
+    $result = Invoke-PpdsCli -Arguments $cliArgs -Json:$PassThru
     if ($PassThru) {
-        $cliArgs += '--json'
-    }
-
-    Write-Verbose "Executing: $cliPath $($cliArgs -join ' ')"
-
-    # Execute CLI and capture output
-    $output = & $cliPath @cliArgs 2>&1
-
-    # Check exit code
-    if ($LASTEXITCODE -ne 0) {
-        $errorMessage = $output | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] }
-        if ($errorMessage) {
-            throw "List failed: $($errorMessage -join "`n")"
-        }
-        throw "List failed with exit code $LASTEXITCODE"
-    }
-
-    if ($PassThru) {
-        # Parse JSON output
-        $jsonOutput = $output | Where-Object { $_ -match '^\s*\{' } | Out-String
-        try {
-            return $jsonOutput | ConvertFrom-Json
-        }
-        catch {
-            throw "Failed to parse list output: $_"
-        }
-    }
-    else {
-        # Write CLI output to console
-        $output | ForEach-Object {
-            if ($_ -is [System.Management.Automation.ErrorRecord]) {
-                Write-Warning $_.ToString()
-            }
-            elseif ($_ -match '^\s*[\{\[]') {
-                # JSON output - skip in non-PassThru mode
-            }
-            else {
-                Write-Verbose $_
-            }
-        }
+        return $result
     }
 }

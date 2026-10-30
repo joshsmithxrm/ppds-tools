@@ -60,9 +60,6 @@ function Remove-DataverseOrphanedSteps {
         throw "Configuration file not found: $ConfigPath"
     }
 
-    # Get the CLI tool
-    $cliPath = Get-PpdsCli
-
     # Determine WhatIf from PowerShell preference
     $isWhatIf = $WhatIfPreference -or $PSCmdlet.MyInvocation.BoundParameters["WhatIf"]
 
@@ -83,49 +80,14 @@ function Remove-DataverseOrphanedSteps {
     }
 
     if ($isWhatIf) {
-        $cliArgs += '--what-if'
+        $cliArgs += '--dry-run'
+    }
+    elseif (-not $PSCmdlet.ShouldProcess($ConfigPath, 'Remove orphaned plugin steps')) {
+        return
     }
 
+    $result = Invoke-PpdsCli -Arguments $cliArgs -Json:$PassThru
     if ($PassThru) {
-        $cliArgs += '--json'
-    }
-
-    Write-Verbose "Executing: $cliPath $($cliArgs -join ' ')"
-
-    # Execute CLI and capture output
-    $output = & $cliPath @cliArgs 2>&1
-
-    # Check exit code
-    if ($LASTEXITCODE -ne 0) {
-        $errorMessage = $output | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] }
-        if ($errorMessage) {
-            throw "Cleanup failed: $($errorMessage -join "`n")"
-        }
-        throw "Cleanup failed with exit code $LASTEXITCODE"
-    }
-
-    if ($PassThru) {
-        # Parse JSON output
-        $jsonOutput = $output | Where-Object { $_ -match '^\s*\[' } | Out-String
-        try {
-            return $jsonOutput | ConvertFrom-Json
-        }
-        catch {
-            throw "Failed to parse cleanup output: $_"
-        }
-    }
-    else {
-        # Write CLI output to verbose
-        $output | ForEach-Object {
-            if ($_ -is [System.Management.Automation.ErrorRecord]) {
-                Write-Warning $_.ToString()
-            }
-            elseif ($_ -match '^\s*[\{\[]') {
-                # JSON output - skip in non-PassThru mode
-            }
-            else {
-                Write-Verbose $_
-            }
-        }
+        return $result
     }
 }

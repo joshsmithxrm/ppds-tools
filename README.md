@@ -10,6 +10,8 @@ PowerShell module for Dataverse plugin deployment and data migration. Part of th
 
 ## Installation
 
+This source prepares **1.2.0-alpha3**, a prerelease repair of the CLI-wrapper API introduced in alpha2. Stable **1.1.0** uses the earlier native implementation and is unaffected. A source merge does not publish this prerelease.
+
 ```powershell
 # Install the PowerShell module
 Install-Module PPDS.Tools -Scope CurrentUser -AllowPrerelease
@@ -22,6 +24,8 @@ dotnet tool install --global PPDS.Cli
 - PowerShell 7.0+
 - .NET 8.0+ SDK (for CLI tool)
 - PPDS.Cli dotnet tool
+
+The wrapper contracts are tested against the published **PPDS.Cli 1.4.1** package. Offline extraction and schema analysis are also checked against the maintenance **1.4.2 candidate**; that candidate is not a published dependency. Authentication and Dataverse operations are covered at the mock CLI boundary, without live-service validation. See [CLI compatibility and testing](docs/CLI_COMPATIBILITY.md).
 
 ---
 
@@ -146,10 +150,10 @@ Get-DataverseProfiles
 Get-DataverseProfile
 
 # Switch profile (use CLI directly)
-ppds auth select dev
+ppds auth select --name dev
 
 # Delete profile (use CLI directly)
-ppds auth delete prod
+ppds auth delete --name prod
 ```
 
 ---

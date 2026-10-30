@@ -148,9 +148,6 @@ function Connect-DataverseEnvironment {
         [switch]$PassThru
     )
 
-    # Get the CLI tool
-    $cliPath = Get-PpdsCli
-
     # Build arguments
     $cliArgs = @(
         'auth', 'create'
@@ -227,36 +224,20 @@ function Connect-DataverseEnvironment {
         $cliArgs += '--azureDevOpsFederated'
     }
 
-    Write-Verbose "Executing: $cliPath $($cliArgs -join ' ')"
-
-    # Execute CLI - don't capture output so interactive prompts work
-    & $cliPath @cliArgs
-
-    # Check exit code
-    if ($LASTEXITCODE -ne 0) {
-        throw "Profile creation failed with exit code $LASTEXITCODE"
-    }
-
+    # Keep the console attached for device-code and browser authentication.
+    # Never log the assembled arguments: they can contain credentials.
+    Invoke-PpdsCli -Arguments $cliArgs -Interactive
     if ($PassThru) {
-        # Return the profile name (either specified or we need to query the active one)
         if ($Name) {
             return $Name
         }
-        else {
-            # Query the active profile to get its name/identifier
-            $whoOutput = & $cliPath 'auth' 'who' '--json' 2>&1 | Out-String
-            try {
-                $who = $whoOutput | ConvertFrom-Json
-                if ($who.active -and $who.active.name) {
-                    return $who.active.name
-                }
-                elseif ($who.active -and $who.active.index) {
-                    return "[$($who.active.index)]"
-                }
-            }
-            catch {
-                Write-Warning "Could not determine profile name"
-            }
+        $profileResult = Get-DataverseProfile
+        if ($profileResult.name) {
+            return $profileResult.name
         }
+        if ($null -ne $profileResult.index) {
+            return "[$($profileResult.index)]"
+        }
+        Write-Warning 'Could not determine profile name'
     }
 }

@@ -121,14 +121,11 @@ function Import-DataverseData {
         throw "User mapping file not found: $UserMappingPath"
     }
 
-    # Get the CLI tool
-    $cliPath = Get-PpdsCli
-
     # Build arguments
     $cliArgs = @(
         'data', 'import'
         '--data', (Resolve-Path $DataPath).Path
-        '--json'  # Always use JSON for progress parsing
+        '--output-format', 'Json'
     )
 
     if ($Profile) {
@@ -172,106 +169,8 @@ function Import-DataverseData {
         $cliArgs += '--skip-missing-columns'
     }
 
-    Write-Verbose "Executing: $cliPath $($cliArgs -join ' ')"
-
-    # Execute CLI and parse progress
-    $importResult = [PSCustomObject]@{
-        RecordsProcessed = 0
-        RecordsFailed    = 0
-        Duration         = [TimeSpan]::Zero
-    }
-    $errorOutput = @()
-    $currentTier = -1
-
-    & $cliPath @cliArgs 2>&1 | ForEach-Object {
-        $line = $_
-
-        # Check if it's a JSON progress line
-        if ($line -match '^\s*\{') {
-            try {
-                $progress = $line | ConvertFrom-Json
-
-                switch ($progress.phase) {
-                    'analyzing' {
-                        Write-Verbose $progress.message
-                    }
-                    'import' {
-                        if ($null -ne $progress.tier -and $progress.tier -ne $currentTier) {
-                            $currentTier = $progress.tier
-                            Write-Verbose "Processing tier $currentTier"
-                        }
-
-                        if ($progress.entity -and $progress.total -gt 0) {
-                            $percent = [math]::Min(100, [math]::Round(($progress.current / $progress.total) * 100))
-                            $status = "$($progress.current)/$($progress.total)"
-                            if ($progress.rps) {
-                                $status += " @ $([math]::Round($progress.rps, 1)) rps"
-                            }
-                            Write-Progress -Activity "Importing $($progress.entity)" `
-                                -PercentComplete $percent `
-                                -Status $status
-                        }
-                        elseif ($progress.message) {
-                            Write-Verbose $progress.message
-                        }
-                    }
-                    'deferred' {
-                        if ($progress.entity -and $progress.field) {
-                            $percent = [math]::Min(100, [math]::Round(($progress.current / $progress.total) * 100))
-                            Write-Progress -Activity "Updating deferred field: $($progress.entity).$($progress.field)" `
-                                -PercentComplete $percent `
-                                -Status "$($progress.current)/$($progress.total)"
-                        }
-                    }
-                    'complete' {
-                        Write-Progress -Activity "Import complete" -Completed
-                        $importResult.RecordsProcessed = $progress.recordsProcessed
-                        $importResult.RecordsFailed = $progress.errors
-                        if ($progress.duration) {
-                            $importResult.Duration = [TimeSpan]::Parse($progress.duration)
-                        }
-                        Write-Verbose "Completed in $($progress.duration). Records: $($progress.recordsProcessed), Errors: $($progress.errors)"
-                    }
-                    'error' {
-                        $errorOutput += $progress.message
-                    }
-                }
-            }
-            catch {
-                # Not valid JSON, treat as regular output
-                Write-Verbose $line
-            }
-        }
-        else {
-            # Regular output
-            if ($line -is [System.Management.Automation.ErrorRecord]) {
-                $errorOutput += $line.ToString()
-            }
-            else {
-                Write-Verbose $line
-            }
-        }
-    }
-
-    # Check exit code
-    if ($LASTEXITCODE -eq 2) {
-        # Complete failure
-        $errorMessage = if ($errorOutput.Count -gt 0) {
-            $errorOutput -join "`n"
-        }
-        else {
-            "Import failed with exit code $LASTEXITCODE"
-        }
-        throw $errorMessage
-    }
-    elseif ($LASTEXITCODE -eq 1) {
-        # Partial success
-        Write-Warning "Import completed with some failures. $($importResult.RecordsFailed) records failed."
-    }
-
-    Write-Progress -Activity "Import" -Completed
-
+    $result = Invoke-PpdsMigration -Arguments $cliArgs
     if ($PassThru) {
-        return $importResult
+        return $result
     }
 }
