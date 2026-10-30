@@ -77,9 +77,6 @@ function Deploy-DataversePlugins {
         throw "Configuration file not found: $ConfigPath"
     }
 
-    # Get the CLI tool
-    $cliPath = Get-PpdsCli
-
     # Determine WhatIf from PowerShell preference
     $isWhatIf = $WhatIfPreference -or $PSCmdlet.MyInvocation.BoundParameters["WhatIf"]
 
@@ -109,49 +106,14 @@ function Deploy-DataversePlugins {
     }
 
     if ($isWhatIf) {
-        $cliArgs += '--what-if'
+        $cliArgs += '--dry-run'
+    }
+    elseif (-not $PSCmdlet.ShouldProcess($ConfigPath, 'Deploy plugins')) {
+        return
     }
 
+    $result = Invoke-PpdsCli -Arguments $cliArgs -Json:$PassThru
     if ($PassThru) {
-        $cliArgs += '--json'
-    }
-
-    Write-Verbose "Executing: $cliPath $($cliArgs -join ' ')"
-
-    # Execute CLI and capture output
-    $output = & $cliPath @cliArgs 2>&1
-
-    # Check exit code
-    if ($LASTEXITCODE -ne 0) {
-        $errorMessage = $output | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] }
-        if ($errorMessage) {
-            throw "Deployment failed: $($errorMessage -join "`n")"
-        }
-        throw "Deployment failed with exit code $LASTEXITCODE"
-    }
-
-    if ($PassThru) {
-        # Parse JSON output
-        $jsonOutput = $output | Where-Object { $_ -match '^\s*\[' } | Out-String
-        try {
-            return $jsonOutput | ConvertFrom-Json
-        }
-        catch {
-            throw "Failed to parse deployment output: $_"
-        }
-    }
-    else {
-        # Write CLI output to verbose or console as appropriate
-        $output | ForEach-Object {
-            if ($_ -is [System.Management.Automation.ErrorRecord]) {
-                Write-Warning $_.ToString()
-            }
-            elseif ($_ -match '^\s*[\{\[]') {
-                # JSON output - skip in non-PassThru mode
-            }
-            else {
-                Write-Verbose $_
-            }
-        }
+        return $result
     }
 }

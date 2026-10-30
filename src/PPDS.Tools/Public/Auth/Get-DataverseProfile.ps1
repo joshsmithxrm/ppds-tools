@@ -26,40 +26,13 @@ function Get-DataverseProfile {
         [switch]$AsJson
     )
 
-    # Get the CLI tool
-    $cliPath = Get-PpdsCli
-
-    # Build arguments
-    $cliArgs = @('auth', 'who', '--json')
-
-    Write-Verbose "Executing: $cliPath $($cliArgs -join ' ')"
-
-    # Execute CLI and capture output
-    $output = & $cliPath @cliArgs 2>&1
-
-    if ($LASTEXITCODE -ne 0) {
-        $errorMessage = $output | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] }
-        if ($errorMessage) {
-            throw "Failed to get profile: $($errorMessage -join "`n")"
-        }
-        throw "Failed to get profile with exit code $LASTEXITCODE"
-    }
-
+    $result = Invoke-PpdsCli -Arguments @('auth', 'who') -Json -AsJson:$AsJson
     if ($AsJson) {
-        return $output | Out-String
+        return $result
     }
-
-    try {
-        $result = $output | Out-String | ConvertFrom-Json
-        if ($result.active) {
-            return $result.active
-        }
-        else {
-            Write-Warning "No active profile. Use Connect-DataverseEnvironment to create one."
-            return $null
-        }
+    if ($null -eq $result.active) {
+        Write-Warning 'No active profile. Use Connect-DataverseEnvironment to create one.'
+        return $null
     }
-    catch {
-        throw "Failed to parse profile output: $_"
-    }
+    return $result.active
 }

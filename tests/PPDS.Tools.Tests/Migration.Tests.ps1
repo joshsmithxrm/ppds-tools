@@ -69,66 +69,6 @@ Describe "Export-DataverseData" -Tag 'Unit' {
         }
     }
 
-    Context "CLI Argument Building" {
-        BeforeAll {
-            # Create a temporary schema file
-            $script:tempSchema = Join-Path $TestDrive "schema.xml"
-            "<schema/>" | Out-File $script:tempSchema
-        }
-
-        It "Should include --json flag for progress parsing" {
-            InModuleScope PPDS.Tools -Parameters @{ schemaPath = $script:tempSchema } {
-                param($schemaPath)
-
-                # Simulate what the function does internally
-                $cliArgs = @(
-                    'data', 'export'
-                    '--schema', $schemaPath
-                    '--output', './out.zip'
-                    '--json'
-                )
-                $cliArgs | Should -Contain '--json'
-            }
-        }
-
-        It "Should include --profile when specified" {
-            InModuleScope PPDS.Tools {
-                $cliArgs = @('data', 'export')
-                $Profile = 'dev'
-                if ($Profile) {
-                    $cliArgs += '--profile'
-                    $cliArgs += $Profile
-                }
-                $cliArgs | Should -Contain '--profile'
-                $cliArgs | Should -Contain 'dev'
-            }
-        }
-
-        It "Should include --environment when specified" {
-            InModuleScope PPDS.Tools {
-                $cliArgs = @('data', 'export')
-                $Environment = 'https://org.crm.dynamics.com'
-                if ($Environment) {
-                    $cliArgs += '--environment'
-                    $cliArgs += $Environment
-                }
-                $cliArgs | Should -Contain '--environment'
-            }
-        }
-
-        It "Should include --parallel when specified" {
-            InModuleScope PPDS.Tools {
-                $cliArgs = @('data', 'export')
-                $Parallel = 8
-                if ($Parallel -gt 0) {
-                    $cliArgs += '--parallel'
-                    $cliArgs += $Parallel
-                }
-                $cliArgs | Should -Contain '--parallel'
-                $cliArgs | Should -Contain 8
-            }
-        }
-    }
 }
 
 Describe "Import-DataverseData" -Tag 'Unit' {
@@ -173,67 +113,6 @@ Describe "Import-DataverseData" -Tag 'Unit' {
         }
     }
 
-    Context "CLI Argument Building" {
-        It "Should include --bypass-plugins when specified" {
-            InModuleScope PPDS.Tools {
-                $cliArgs = @('data', 'import')
-                $BypassPlugins = 'all'
-                if ($BypassPlugins) {
-                    $cliArgs += '--bypass-plugins'
-                    $cliArgs += $BypassPlugins
-                }
-                $cliArgs | Should -Contain '--bypass-plugins'
-                $cliArgs | Should -Contain 'all'
-            }
-        }
-
-        It "Should include --bypass-flows when specified" {
-            InModuleScope PPDS.Tools {
-                $cliArgs = @('data', 'import')
-                $BypassFlows = $true
-                if ($BypassFlows) {
-                    $cliArgs += '--bypass-flows'
-                }
-                $cliArgs | Should -Contain '--bypass-flows'
-            }
-        }
-
-        It "Should include --continue-on-error when specified" {
-            InModuleScope PPDS.Tools {
-                $cliArgs = @('data', 'import')
-                $ContinueOnError = $true
-                if ($ContinueOnError) {
-                    $cliArgs += '--continue-on-error'
-                }
-                $cliArgs | Should -Contain '--continue-on-error'
-            }
-        }
-
-        It "Should include --mode when not Upsert" {
-            InModuleScope PPDS.Tools {
-                $cliArgs = @('data', 'import')
-                $Mode = 'Create'
-                if ($Mode -ne 'Upsert') {
-                    $cliArgs += '--mode'
-                    $cliArgs += $Mode
-                }
-                $cliArgs | Should -Contain '--mode'
-                $cliArgs | Should -Contain 'Create'
-            }
-        }
-
-        It "Should not include --mode when Upsert (default)" {
-            InModuleScope PPDS.Tools {
-                $cliArgs = @('data', 'import')
-                $Mode = 'Upsert'
-                if ($Mode -ne 'Upsert') {
-                    $cliArgs += '--mode'
-                    $cliArgs += $Mode
-                }
-                $cliArgs | Should -Not -Contain '--mode'
-            }
-        }
-    }
 }
 
 Describe "Get-DataverseDependencyGraph" -Tag 'Unit' {
@@ -260,56 +139,6 @@ Describe "Get-DataverseDependencyGraph" -Tag 'Unit' {
         }
     }
 
-    Context "JSON Output Parsing" {
-        It "Should parse valid dependency graph JSON" {
-            $jsonOutput = @'
-{
-    "entityCount": 5,
-    "dependencyCount": 3,
-    "circularReferenceCount": 1,
-    "tiers": [
-        { "tier": 1, "entities": ["account", "contact"], "hasCircular": false },
-        { "tier": 2, "entities": ["opportunity"], "hasCircular": true }
-    ],
-    "deferredFields": [{ "entity": "contact", "field": "parentcustomerid" }],
-    "manyToManyRelationships": [],
-    "note": "Test"
-}
-'@
-            InModuleScope PPDS.Tools -Parameters @{ jsonOutput = $jsonOutput } {
-                param($jsonOutput)
-
-                $data = $jsonOutput | ConvertFrom-Json
-
-                $result = [PSCustomObject]@{
-                    EntityCount            = $data.entityCount
-                    DependencyCount        = $data.dependencyCount
-                    CircularReferenceCount = $data.circularReferenceCount
-                    Tiers                  = @(
-                        $data.tiers | ForEach-Object {
-                            [PSCustomObject]@{
-                                Tier        = $_.tier
-                                Entities    = $_.entities
-                                HasCircular = [bool]$_.hasCircular
-                            }
-                        }
-                    )
-                    DeferredFields         = $data.deferredFields
-                    ManyToManyRelationships = $data.manyToManyRelationships
-                    Note                   = $data.note
-                }
-
-                $result.EntityCount | Should -Be 5
-                $result.DependencyCount | Should -Be 3
-                $result.CircularReferenceCount | Should -Be 1
-                $result.Tiers.Count | Should -Be 2
-                $result.Tiers[0].Tier | Should -Be 1
-                $result.Tiers[0].HasCircular | Should -Be $false
-                $result.Tiers[1].HasCircular | Should -Be $true
-                $result.DeferredFields.Count | Should -Be 1
-            }
-        }
-    }
 }
 
 Describe "Copy-DataverseData" -Tag 'Unit' {

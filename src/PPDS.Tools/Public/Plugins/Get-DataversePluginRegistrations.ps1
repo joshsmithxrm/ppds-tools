@@ -72,9 +72,6 @@ function Get-DataversePluginRegistrations {
         throw "Input file not found: $InputPath"
     }
 
-    # Get the CLI tool
-    $cliPath = Get-PpdsCli
-
     # Build arguments
     $cliArgs = @(
         'plugins', 'extract'
@@ -95,43 +92,8 @@ function Get-DataversePluginRegistrations {
         $cliArgs += '--force'
     }
 
+    $result = Invoke-PpdsCli -Arguments $cliArgs -Json:$PassThru
     if ($PassThru) {
-        $cliArgs += '--json'
-    }
-
-    Write-Verbose "Executing: $cliPath $($cliArgs -join ' ')"
-
-    # Execute CLI and capture output
-    $output = & $cliPath @cliArgs 2>&1
-
-    # Check exit code
-    if ($LASTEXITCODE -ne 0) {
-        $errorMessage = $output | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] }
-        if ($errorMessage) {
-            throw "Extraction failed: $($errorMessage -join "`n")"
-        }
-        throw "Extraction failed with exit code $LASTEXITCODE"
-    }
-
-    if ($PassThru) {
-        # Parse JSON output
-        $jsonOutput = $output | Where-Object { $_ -match '^\s*\{' } | Out-String
-        try {
-            return $jsonOutput | ConvertFrom-Json
-        }
-        catch {
-            throw "Failed to parse extraction output: $_"
-        }
-    }
-    else {
-        # Write CLI output to verbose
-        $output | ForEach-Object {
-            if ($_ -is [System.Management.Automation.ErrorRecord]) {
-                Write-Warning $_.ToString()
-            }
-            else {
-                Write-Verbose $_
-            }
-        }
+        return $result
     }
 }

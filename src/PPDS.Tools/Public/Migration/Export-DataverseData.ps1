@@ -78,15 +78,12 @@ function Export-DataverseData {
         throw "Schema file not found: $SchemaPath"
     }
 
-    # Get the CLI tool
-    $cliPath = Get-PpdsCli
-
     # Build arguments
     $cliArgs = @(
         'data', 'export'
         '--schema', (Resolve-Path $SchemaPath).Path
         '--output', $OutputPath
-        '--json'  # Always use JSON for progress parsing
+        '--output-format', 'Json'
     )
 
     if ($Profile) {
@@ -109,77 +106,8 @@ function Export-DataverseData {
         $cliArgs += $BatchSize
     }
 
-    Write-Verbose "Executing: $cliPath $($cliArgs -join ' ')"
-
-    # Execute CLI and parse progress
-    $errorOutput = @()
-
-    & $cliPath @cliArgs 2>&1 | ForEach-Object {
-        $line = $_
-
-        # Check if it's a JSON progress line
-        if ($line -match '^\s*\{') {
-            try {
-                $progress = $line | ConvertFrom-Json
-
-                switch ($progress.phase) {
-                    'analyzing' {
-                        Write-Verbose $progress.message
-                    }
-                    'export' {
-                        if ($progress.entity -and $progress.total -gt 0) {
-                            $percent = [math]::Min(100, [math]::Round(($progress.current / $progress.total) * 100))
-                            $status = "$($progress.current)/$($progress.total)"
-                            if ($progress.rps) {
-                                $status += " @ $([math]::Round($progress.rps, 1)) rps"
-                            }
-                            Write-Progress -Activity "Exporting $($progress.entity)" `
-                                -PercentComplete $percent `
-                                -Status $status
-                        }
-                        elseif ($progress.message) {
-                            Write-Verbose $progress.message
-                        }
-                    }
-                    'complete' {
-                        Write-Progress -Activity "Export complete" -Completed
-                        Write-Verbose "Completed in $($progress.duration). Records: $($progress.recordsProcessed), Errors: $($progress.errors)"
-                    }
-                    'error' {
-                        $errorOutput += $progress.message
-                    }
-                }
-            }
-            catch {
-                # Not valid JSON, treat as regular output
-                Write-Verbose $line
-            }
-        }
-        else {
-            # Regular output
-            if ($line -is [System.Management.Automation.ErrorRecord]) {
-                $errorOutput += $line.ToString()
-            }
-            else {
-                Write-Verbose $line
-            }
-        }
-    }
-
-    # Check exit code
-    if ($LASTEXITCODE -ne 0) {
-        $errorMessage = if ($errorOutput.Count -gt 0) {
-            $errorOutput -join "`n"
-        }
-        else {
-            "Export failed with exit code $LASTEXITCODE"
-        }
-        throw $errorMessage
-    }
-
-    Write-Progress -Activity "Export" -Completed
-
+    Invoke-PpdsMigration -Arguments $cliArgs | Out-Null
     if ($PassThru) {
-        return Get-Item $OutputPath
+        return Get-Item -LiteralPath $OutputPath
     }
 }
