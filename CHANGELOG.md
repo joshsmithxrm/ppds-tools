@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Parse complete profile/schema JSON and unwrap plugin result envelopes; reject error envelopes even on exit zero.
 - Read migration JSON-lines progress from stderr, use `failureCount`, and reject every nonzero failure exit code.
 - Preserve drift exit-one warnings, PowerShell working directories, exact argument values, and interactive console prompts.
+- Interrupt CLI waits promptly on PowerShell cancellation and terminate the owned child process.
 - Resolve unnamed authentication `-PassThru` through the active profile object.
 
 #### Testing

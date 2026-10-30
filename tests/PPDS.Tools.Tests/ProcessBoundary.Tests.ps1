@@ -72,4 +72,58 @@ Import-Module $ModulePath -Force
             $result.StdErr | Should -Match 'synthetic stderr prompt'
         }
     }
+
+    It 'promptly stops and terminates the owned child in <Mode> mode' -TestCases @(
+        @{ Mode = 'streamed' }, @{ Mode = 'captured' }, @{ Mode = 'interactive' }
+    ) {
+        param($Mode)
+        $readyPath = Join-Path $TestDrive "ready-$Mode.txt"
+        $sleepingChild = Join-Path $TestDrive 'sleeping child.ps1'
+        @'
+param($ReadyPath)
+Set-Content -LiteralPath $ReadyPath -Value $PID
+Start-Sleep -Seconds 15
+'@ | Set-Content -LiteralPath $sleepingChild
+        $helperPath = Join-Path $PSScriptRoot '../../src/PPDS.Tools/Private/Invoke-PpdsProcess.ps1'
+        $runner = [PowerShell]::Create()
+        $childId = 0
+        try {
+            [void]$runner.AddScript({
+                param($HelperPath, $PwshPath, $ChildPath, $ReadyPath, $Mode)
+                . $HelperPath
+                $options = @{
+                    FilePath = $PwshPath
+                    Arguments = @('-NoProfile', '-File', $ChildPath, '-ReadyPath', $ReadyPath)
+                }
+                if ($Mode -eq 'interactive') { $options.Interactive = $true }
+                if ($Mode -eq 'streamed') { $options.StandardErrorHandler = { param($line) $line } }
+                Invoke-PpdsProcess @options
+            }).AddArgument($helperPath).AddArgument($pwshPath).AddArgument($sleepingChild).AddArgument($readyPath).AddArgument($Mode)
+            $running = $runner.BeginInvoke()
+            $readyDeadline = [DateTime]::UtcNow.AddSeconds(10)
+            while ([DateTime]::UtcNow -lt $readyDeadline -and -not $running.IsCompleted) {
+                if ((Test-Path -LiteralPath $readyPath) -and
+                    [int]::TryParse((Get-Content -LiteralPath $readyPath -Raw), [ref]$childId) -and $childId -gt 0) { break }
+                Start-Sleep -Milliseconds 20
+            }
+            $childId | Should -BeGreaterThan 0
+            $stop = $runner.BeginStop($null, $null)
+            $stop.AsyncWaitHandle.WaitOne(2000) | Should -BeTrue -Because 'stop must interrupt waiting for the 15-second child'
+            $runner.EndStop($stop)
+            $exitDeadline = [DateTime]::UtcNow.AddSeconds(1)
+            while ((Get-Process -Id $childId -ErrorAction SilentlyContinue) -and [DateTime]::UtcNow -lt $exitDeadline) {
+                Start-Sleep -Milliseconds 20
+            }
+            Get-Process -Id $childId -ErrorAction SilentlyContinue | Should -BeNullOrEmpty
+        }
+        finally {
+            # A failing regression must not leave the synthetic sleeper running.
+            if ($childId) {
+                $leftover = Get-Process -Id $childId -ErrorAction SilentlyContinue
+                if ($leftover) { $leftover.Kill($true) }
+            }
+            $runner.Stop()
+            $runner.Dispose()
+        }
+    }
 }
