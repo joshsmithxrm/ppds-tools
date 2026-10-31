@@ -7,9 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### 1.2.0-alpha3 (prepared prerelease)
+## [1.2.0-alpha3] - 2026-10-30
 
-#### Fixed
+### Fixed
 
 - Prevent authentication arguments and supplied credential values from appearing in wrapper diagnostics.
 - Match PPDS.Cli 1.4.1 options: `--output-format Json` and plugin `--dry-run`.
@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interrupt CLI waits promptly on PowerShell cancellation and terminate the owned child process.
 - Resolve unnamed authentication `-PassThru` through the active profile object.
 
-#### Testing
+### Testing
 
 - Replace copied argument/parser examples with tests invoking all public wrappers through a mock process boundary.
 - Add real subprocess tests and offline packaged CLI extraction/schema tests using synthetic fixtures.
