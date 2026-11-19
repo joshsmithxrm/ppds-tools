@@ -221,7 +221,7 @@ steps:
 
 ## Architecture
 
-All cmdlets wrap the [`ppds`](https://github.com/joshsmithxrm/ppds-sdk) CLI tool. This provides:
+All cmdlets wrap the [`ppds`](https://github.com/joshsmithxrm/power-platform-developer-suite) CLI tool. This provides:
 
 - **Single source of truth** - CLI is the implementation
 - **Consistent behavior** - Same code path as CLI users
